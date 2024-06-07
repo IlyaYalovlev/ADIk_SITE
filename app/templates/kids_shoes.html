@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Детская обувь - ADIK STORE</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick-theme.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"/>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <h1><a href="/">ADIK STORE</a></h1>
+            <div class="header-right">
+                <input type="text" class="search-box" placeholder="Поиск...">
+                <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
+                <a href="/login" class="auth-button">Авторизация</a>
+            </div>
+        </div>
+        <nav>
+            <a href="/mens-shoes">Мужская обувь</a>
+            <a href="/womens-shoes">Женская обувь</a>
+            <a href="/kids-shoes" class="active">Детская обувь</a>
+        </nav>
+    </header>
+    <main>
+        <section>
+            <div class="products">
+                {% for product in products %}
+                <div class="product">
+                    <div class="product-slider">
+                        {% if product.image_side_url %}
+                        <img src="{{ product.image_side_url }}" alt="Изображение сбоку товара" onerror="handleImageError(this)">
+                        {% endif %}
+
+                        {% if product.image_top_url %}
+                        <img src="{{ product.image_top_url }}" alt="Изображение товара сверху" onerror="handleImageError(this)">
+                        {% endif %}
+
+                        {% if product.image_34_url %}
+                        <img src="{{ product.image_34_url }}" alt="Изображение товара под углом 34 градуса" onerror="handleImageError(this)">
+                        {% endif %}
+                    </div>
+                    <p class="model">{{ product.model_name }}</p>
+                    <p class="price"><del>{{ product.price }}</del> <span class="discount-price">{{ product.discount_price }}</span></p>
+                    {% if product.discount_price < product.price %}
+                    <p class="discount-text">(Скидка {{ ((product.price - product.discount_price) / product.price * 100) | round(0) }}% )</p>
+                    {% endif %}
+                    <button class="add-to-cart-button"><i class="fas fa-shopping-cart"></i></button>
+                </div>
+                {% endfor %}
+            </div>
+            <!-- Пагинация -->
+            <div class="pagination">
+                {% if page > 1 %}
+                <a href="/mens-shoes/{{ page-1 }}" class="page-link">&laquo; Предыдущая</a>
+                {% endif %}
+                {% for p in range(1, total_pages + 1) %}
+                <a href="/mens-shoes/{{ p }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
+                {% endfor %}
+                {% if page < total_pages %}
+                <a href="/mens-shoes/{{ page+1 }}" class="page-link">Следующая &raquo;</a>
+                {% endif %}
+            </div>
+        </section>
+    </main>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
+    <script>
+        function handleImageError(img) {
+            img.style.display = 'none';
+        }
+
+        $(document).ready(function(){
+            $('.product-slider').slick({
+                dots: true,
+                infinite: true,
+                speed: 300,
+                slidesToShow: 1,
+                adaptiveHeight: true,
+                prevArrow: '<button type="button" class="slick-prev">&lt;</button>',
+                nextArrow: '<button type="button" class="slick-next">&gt;</button>',
+            });
+        });
+    </script>
+</body>
+</html>

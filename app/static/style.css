@@ -1,0 +1,235 @@
+/* Основные стили для тела страницы */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+/* Стили для заголовка */
+header {
+    background-color: #333;
+    color: white;
+    padding: 10px 0;
+    text-align: center;
+    position: relative;
+}
+
+/* Контейнер для элементов заголовка */
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+}
+
+/* Контейнер для элементов справа в заголовке */
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 15px; /* Расстояние между элементами справа */
+}
+
+/* Стили для логотипа */
+header h1 a {
+    color: white;
+    text-decoration: none;
+}
+
+/* Стили для навигации */
+nav {
+    display: flex;
+    justify-content: center; /* Центрируем элементы навигации */
+    gap: 15px;
+    margin-top: 10px;
+}
+
+/* Стили для ссылок навигации */
+nav a {
+    color: white;
+    text-decoration: none;
+    padding: 5px 10px;
+}
+
+/* Стили для ссылок навигации при наведении */
+nav a:hover {
+    background-color: #555; /* Фон при наведении */
+    color: white; /* Цвет текста при наведении */
+    border-radius: 5px; /* Закругленные углы */
+}
+
+/* Стили для строки поиска */
+.search-box {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 200px;
+}
+
+/* Стили для кнопки корзины */
+.cart-button {
+    border: 2px solid #ff9800;
+    color: #ff9800;
+    padding: 5px 10px; /* Уменьшенный размер кнопки */
+    border-radius: 5px;
+    text-decoration: none;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px; /* Расстояние между иконкой и текстом */
+}
+
+/* Стили для кнопки корзины при наведении */
+.cart-button:hover {
+    background-color: #ff9800;
+    color: white;
+}
+
+/* Стили для кнопки авторизации */
+.auth-button {
+    border: 2px solid #007bff;
+    color: #007bff;
+    padding: 5px 10px; /* Уменьшенный размер кнопки */
+    border-radius: 5px;
+    text-decoration: none;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* Стили для кнопки авторизации при наведении */
+.auth-button:hover {
+    background-color: #007bff;
+    color: white;
+}
+
+/* Стили для основного контента */
+main {
+    padding: 20px;
+}
+
+/* Стили для контейнера продуктов */
+.products {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px; /* Увеличиваем расстояние между продуктами */
+    justify-content: center;
+}
+
+/* Стили для каждого продукта */
+.product {
+    border: 1px solid #ccc;
+    padding: 10px;
+    width: 200px;
+    text-align: center;
+    position: relative; /* Для размещения кнопки добавления в корзину */
+}
+
+/* Стили для изображений продуктов */
+.product img {
+    max-width: 100%;
+}
+
+/* Стили для зачеркнутой цены */
+.price del {
+    color: gray;
+}
+
+/* Стили для цены со скидкой */
+.discount-price {
+    color: red;
+    font-size: 1.2em;
+}
+
+/* Стили для текста скидки */
+.discount {
+    color: green;
+}
+
+/* Стили для кнопки добавления в корзину у каждого продукта */
+.add-to-cart-button {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 5px; /* Уменьшаем размер кнопки */
+    border-radius: 50%; /* Круглая кнопка */
+    cursor: pointer;
+}
+
+/* Стили для иконки внутри кнопки добавления в корзину */
+.add-to-cart-button i {
+    font-size: 16px; /* Размер иконки */
+}
+
+/* Стили для кнопки добавления в корзину при наведении */
+.add-to-cart-button:hover {
+    background-color: #0056b3;
+}
+
+/* Стили для пагинации */
+.pagination {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+/* Стили для ссылки пагинации */
+.page-link {
+    margin: 0 5px;
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+    text-decoration: none;
+    color: #333;
+    border-radius: 5px;
+}
+
+/* Стили для активной страницы */
+.page-link.active {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+/* Стили для ссылки пагинации при наведении */
+.page-link:hover {
+    background-color: #0056b3;
+    color: white;
+    border-color: #0056b3;
+}
+
+/* Стили для активной кнопки "Мужская обувь" */
+nav a.active {
+    font-weight: bold; /* Жирный шрифт */
+    text-decoration: underline; /* Подчеркивание */
+}
+
+/* Стили для текста скидки */
+.discount-text {
+    color: green; /* Зеленый цвет */
+}
+
+/* Стили для стрелок слайдера */
+.slick-prev, .slick-next {
+    background-color: gray !important;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+}
+/* Стили для стрелок слайдера */
+.product:hover .slick-prev,
+.product:hover .slick-next {
+    opacity: 1; /* Показываем стрелки при наведении */
+    transition: opacity 0.3s ease; /* Добавляем плавность перехода */
+}
+
+.product .slick-prev,
+.product .slick-next {
+    opacity: 0; /* Скрываем стрелки по умолчанию */
+    transition: opacity 0.3s ease; /* Добавляем плавность перехода */
+}
