@@ -7,7 +7,7 @@ from . import models, schemas
 from decimal import Decimal
 
 from .database import get_db
-from .models import Stock, Product
+from .models import Stock, Product, Customer, Seller
 
 
 # Customers
@@ -239,3 +239,16 @@ async def get_womens_shoes(db: AsyncSession, page: int, per_page: int):
         products.append(product_data)
 
     return products, total
+
+
+async def update_customer_password(session: AsyncSession, customer_id: int, password_hash: str):
+    result = await session.execute(select(Customer).filter(Customer.id == customer_id))
+    customer = result.scalar_one()
+    customer.password_hash = password_hash
+    await session.commit()
+
+async def update_seller_password(session: AsyncSession, seller_id: int, password_hash: str):
+    result = await session.execute(select(Seller).filter(Seller.id == seller_id))
+    seller = result.scalar_one()
+    seller.password_hash = password_hash
+    await session.commit()

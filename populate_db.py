@@ -6,9 +6,12 @@ from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app import models, schemas
 from app.database import get_db
-from app.crud import create_seller, create_stock_item, create_customer, create_purchase
+from app.crud import create_seller, create_stock_item, create_customer, create_purchase, update_customer_password, update_seller_password
+from passlib.context import CryptContext
 
 fake = Faker()
+
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")  # Использование альтернативного контекста
 
 async def get_products(session: AsyncSession):
     result = await session.execute(select(models.Product))
@@ -22,8 +25,8 @@ async def get_stock_items(session: AsyncSession):
 
 async def get_sellers(session: AsyncSession):
     result = await session.execute(select(models.Seller))
-    seller = result.scalars().all()
-    return seller
+    sellers = result.scalars().all()
+    return sellers
 
 async def get_customers(session: AsyncSession):
     result = await session.execute(select(models.Customer))
@@ -66,8 +69,6 @@ async def create_random_sellers_and_stock():
     async with get_db() as session:
         for stock_data_temp in stock_data:
             await create_stock_item(session, stock_data_temp)
-
-
 
 async def create_random_customers_and_purchases():
     customer_data = []
@@ -119,17 +120,44 @@ async def create_random_customers_and_purchases():
     for purchase_data_temp in purchase_data:
         await create_purchase(purchase_data_temp)
 
+async def add_random_passwords():
+    customer_passwords = {}
+    seller_passwords = {}
 
+    async with get_db() as session:
+        customers = await get_customers(session)
+        newinfo = dict()
+        for customer in customers:
+            random_password = fake.password()
+            hashed_password = pwd_context.hash(random_password)
+            newinfo[customer.id] = hashed_password
+            customer_passwords[customer.id] = random_password
+    async with get_db() as session:
+        for id, hashed_password in newinfo.items():
+            await update_customer_password(session, id, hashed_password)
+
+    async with get_db() as session:
+        sellers = await get_sellers(session)
+        newinfo = dict()
+        for seller in sellers:
+            random_password = fake.password()
+            hashed_password = pwd_context.hash(random_password)
+            newinfo[seller.id] = hashed_password
+            seller_passwords[seller.id] = random_password
+    async with get_db() as session:
+        for id, hashed_password in newinfo.items():
+            await update_seller_password(session, id, hashed_password)
+
+    # Сохранение паролей в файл
+    with open("passwords.txt", "w") as f:
+        f.write("Customer Passwords:\n")
+        for customer_id, password in customer_passwords.items():
+            f.write(f"Customer ID: {customer_id}, Password: {password}\n")
+        f.write("\nSeller Passwords:\n")
+        for seller_id, password in seller_passwords.items():
+            f.write(f"Seller ID: {seller_id}, Password: {password}\n")
 
 if __name__ == "__main__":
-    #asyncio.run(create_random_sellers_and_stock())
-    #asyncio.run(create_random_customers_and_purchases())
-    purchase_data_temp = schemas.PurchaseCreate(
-        customer_id=470,
-        product_id="IF5268",
-        stock_id=30,
-        seller_id=181,
-        quantity=1,
-        total_price=101
-    )
-    asyncio.run(create_purchase(purchase_data_temp))
+    # asyncio.run(create_random_sellers_and_stock())
+    # asyncio.run(create_random_customers_and_purchases())
+    asyncio.run(add_random_passwords())

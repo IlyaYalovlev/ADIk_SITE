@@ -3,6 +3,8 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
 from decimal import Decimal
+from passlib.hash import bcrypt
+
 
 class Customer(Base):
     __tablename__ = 'customers'
@@ -11,8 +13,16 @@ class Customer(Base):
     last_name = Column(String, index=True)
     email = Column(String, unique=True, index=True)
     phone = Column(String)
+    password_hash = Column(String, nullable=False)
     total_orders_value = Column(Numeric(10, 2), default=0.0)
     created_at = Column(TIMESTAMP, server_default=func.now())
+
+    def set_password(self, password):
+        self.password_hash = bcrypt.hash(password)
+
+    def check_password(self, password):
+        return bcrypt.verify(password, self.password_hash)
+
 
 class Seller(Base):
     __tablename__ = 'sellers'
@@ -21,10 +31,17 @@ class Seller(Base):
     last_name = Column(String, index=True)
     email = Column(String, unique=True, index=True)
     phone = Column(String, unique=True, index=True)
+    password_hash = Column(String, nullable=False)
     total_orders_value = Column(Numeric(10, 2), default=Decimal('0.00'))
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     stocks = relationship('Stock', back_populates='seller')
+
+    def set_password(self, password):
+        self.password_hash = bcrypt.hash(password)
+
+    def check_password(self, password):
+        return bcrypt.verify(password, self.password_hash)
 
 class Stock(Base):
     __tablename__ = 'stock'

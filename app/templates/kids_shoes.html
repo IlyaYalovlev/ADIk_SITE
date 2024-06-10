@@ -55,13 +55,13 @@
             <!-- Пагинация -->
             <div class="pagination">
                 {% if page > 1 %}
-                <a href="/mens-shoes/{{ page-1 }}" class="page-link">&laquo; Предыдущая</a>
+                <a href="/kids-shoes/{{ page-1 }}" class="page-link">&laquo; Предыдущая</a>
                 {% endif %}
                 {% for p in range(1, total_pages + 1) %}
-                <a href="/mens-shoes/{{ p }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
+                <a href="/kids-shoes/{{ p }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
                 {% endfor %}
                 {% if page < total_pages %}
-                <a href="/mens-shoes/{{ page+1 }}" class="page-link">Следующая &raquo;</a>
+                <a href="/kids-shoes/{{ page+1 }}" class="page-link">Следующая &raquo;</a>
                 {% endif %}
             </div>
         </section>

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Регистрация - ADIK STORE</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* Стили для формы регистрации */
+        main {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 80vh;
+        }
+
+        section {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            text-align: center;
+        }
+
+        form {
+            margin-top: 20px;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button[type="submit"] {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button[type="submit"]:hover {
+            background-color: #45a049;
+        }
+
+        a {
+            text-decoration: none;
+            color: #1e90ff;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <h1><a href="/">ADIK STORE</a></h1>
+            <div class="header-right">
+                <input type="text" class="search-box" placeholder="Поиск...">
+                <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
+                <a href="/login" class="auth-button">Авторизация</a>
+            </div>
+        </div>
+        <nav>
+            <a href="/mens-shoes">Мужская обувь</a>
+            <a href="/womens-shoes">Женская обувь</a>
+            <a href="/kids-shoes" >Детская обувь</a>
+        </nav>
+    </header>
+    <main>
+        <section>
+            <h2>Регистрация</h2>
+            <form method="post" action="/register">
+                <div>
+                    <label for="username">Имя пользователя:</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div>
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div>
+                    <label for="password">Пароль:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <div>
+                    <label for="role">Регистрация как:</label>
+                    <select id="role" name="role" required>
+                        <option value="customer">Покупатель</option>
+                        <option value="seller">Продавец</option>
+                    </select>
+                </div>
+                <button type="submit">Зарегистрироваться</button>
+            </form>
+        </section>
+    </main>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
+</body>
+</html>

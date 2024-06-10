@@ -2,29 +2,27 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{% block title %}My App{% endblock %}</title>
+    <title>Профиль продавца - ADIK STORE</title>
     <link rel="stylesheet" href="/static/style.css">
-    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
 </head>
 <body>
     <header>
-        <h1>Adik Store</h1>
+        <h1>ADIK STORE</h1>
         <nav>
             <ul>
+                <li><a href="/">Главная</a></li>
                 <li><a href="/customers">Customers</a></li>
                 <li><a href="/sellers">Sellers</a></li>
                 <li><a href="/purchases">Purchases</a></li>
-                {% if user %}
-                    <li><a href="/profile">{{ user }}</a></li>
-                {% else %}
-                    <li><a href="/login">Login</a></li>
-                {% endif %}
+                <li><a href="/profile">{{ user.email }}</a></li>
+                <li><a href="/logout">Logout</a></li>
             </ul>
         </nav>
     </header>
     <main>
-        {% block content %}
-        {% endblock %}
+        <h2>Профиль продавца</h2>
+        <p>Email: {{ user.email }}</p>
+        <!-- Здесь будет информация о продавце -->
     </main>
 </body>
 </html>
