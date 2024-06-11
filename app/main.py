@@ -1,16 +1,16 @@
 import os
-from fastapi import FastAPI, Depends, HTTPException, Form
-from sqlalchemy import select
+from fastapi import FastAPI, Depends, HTTPException, Form, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from fastapi.requests import Request
 from fastapi_login import LoginManager
 from . import models, schemas, crud
-from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_kids_shoes, get_womens_shoes
-from .database import engine, get_db, Base, AsyncSessionLocal
+from .auth import manager
+from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
+    get_kids_shoes, load_user
+from .database import engine, get_db, Base
 from .models import Customer, Seller
 
 app = FastAPI()
@@ -25,25 +25,10 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
 # Конфигурация для fastapi-login
-SECRET = "your-secret-key"
-manager = LoginManager(SECRET, token_url='/login', use_cookie=True)
-manager.cookie_name = "auth"
+SECRET_KEY = "your-secret-key"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-@manager.user_loader
-async def load_user(email: str, db: AsyncSession = Depends(get_db)):
-    query = select(Customer).filter(Customer.email == email)
-    result = await db.execute(query)
-    customer = result.scalar_one_or_none()
-    if customer:
-        return customer
-
-    query = select(Seller).filter(Seller.email == email)
-    result = await db.execute(query)
-    seller = result.scalar_one_or_none()
-    if seller:
-        return seller
-
-    return None
 
 # Создание таблиц в базе данных при старте приложения
 @app.on_event("startup")
@@ -58,12 +43,11 @@ async def login_form(request: Request):
 
 # Обработка данных авторизации
 @app.post("/login", response_class=HTMLResponse)
-async def login(request: Request, username: str = Form(...), password: str = Form(...), db: AsyncSession = Depends(get_db)):
-    user = await load_user(username, db)
+async def login(request: Request, email: str = Form(...), password: str = Form(...), db: AsyncSession = Depends(get_db)):
+    user = await load_user(email,db)
     if not user or not user.check_password(password):
         return templates.TemplateResponse("login.html", {"request": request, "error": "Неверные учетные данные"})
-
-    access_token = manager.create_access_token(data={"sub": username})
+    access_token = manager.create_access_token(data={"sub": user.id})
     response = RedirectResponse(url="/", status_code=302)
     manager.set_cookie(response, access_token)
     return response
@@ -73,10 +57,61 @@ async def login(request: Request, username: str = Form(...), password: str = For
 async def read_index(request: Request, db: AsyncSession = Depends(get_db)):
     user = None
     token = request.cookies.get(manager.cookie_name)
+    print("User:", user)
+    print("Token:", token)
+    print("Request data:", request)
     if token:
-        user = await manager.get_current_user(request)
+        user = await manager.get_current_user(token)
     products = await get_popular_products(db)
     return templates.TemplateResponse("index.html", {"request": request, "products": products, "user": user})
+
+
+
+# Маршрут для мужской обуви
+@app.get("/mens-shoes", response_class=HTMLResponse)
+@app.get("/mens-shoes/{page}", response_class=HTMLResponse)
+async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
+    per_page = 24  # количество товаров на одной странице
+    products, total = await get_mens_shoes(db, page, per_page)
+    total_pages = (total + per_page - 1) // per_page  # вычисляем общее количество страниц
+
+    return templates.TemplateResponse("mens_shoes.html", {
+        "request": request,
+        "products": products,
+        "page": page,
+        "total_pages": total_pages
+    })
+
+# Маршрут для женской обуви
+@app.get("/womens-shoes", response_class=HTMLResponse)
+@app.get("/womens-shoes/{page}", response_class=HTMLResponse)
+async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
+    per_page = 24  # количество товаров на одной странице
+    products, total = await get_womens_shoes(db, page, per_page)
+    total_pages = (total + per_page - 1) // per_page  # вычисляем общее количество страниц
+
+    return templates.TemplateResponse("womens_shoes.html", {
+        "request": request,
+        "products": products,
+        "page": page,
+        "total_pages": total_pages
+    })
+
+# Маршрут для детской обуви
+@app.get("/kids-shoes", response_class=HTMLResponse)
+@app.get("/kids-shoes/{page}", response_class=HTMLResponse)
+async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
+    per_page = 24  # количество товаров на одной странице
+    products, total = await get_kids_shoes(db, page, per_page)
+    total_pages = (total + per_page - 1) // per_page  # вычисляем общее количество страниц
+
+    return templates.TemplateResponse("kids_shoes.html", {
+        "request": request,
+        "products": products,
+        "page": page,
+        "total_pages": total_pages
+    })
+
 
 # Маршрут для отображения профиля пользователя
 @app.get("/profile", response_class=HTMLResponse)

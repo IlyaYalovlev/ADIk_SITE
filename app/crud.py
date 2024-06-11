@@ -1,8 +1,8 @@
+from fastapi import Depends
 from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
 from . import models, schemas
 from decimal import Decimal
 
@@ -68,7 +68,6 @@ async def get_purchases(db: AsyncSession, skip: int = 0, limit: int = 10):
     return result.scalars().all()
 
 async def create_purchase(db: AsyncSession, purchase: schemas.PurchaseCreate):
-    # Создаем запись покупки
     db_purchase = models.Purchase(**purchase.dict())
     db.add(db_purchase)
     await db.commit()
@@ -76,14 +75,12 @@ async def create_purchase(db: AsyncSession, purchase: schemas.PurchaseCreate):
     return db_purchase
 
 async def update_customer(db: AsyncSession, purchase: schemas.PurchaseCreate):
-    # Обновляем общую сумму заказов для покупателя
     db_customer = await get_customer(db, purchase.customer_id)
     db_customer.total_orders_value += Decimal(purchase.total_price)
     await db.commit()
     await db.refresh(db_customer)
 
 async def update_seller(db: AsyncSession, purchase: schemas.PurchaseCreate):
-    # Обновляем общую сумму заказов для продавца
     db_seller = await get_seller(db, purchase.seller_id)
     if db_seller.total_orders_value is None:
         db_seller.total_orders_value = Decimal('0.00')
@@ -92,16 +89,12 @@ async def update_seller(db: AsyncSession, purchase: schemas.PurchaseCreate):
     await db.refresh(db_seller)
 
 async def update_stock(db: AsyncSession, purchase: schemas.PurchaseCreate):
-    # Обновляем общую сумму заказов для продавца
     db_stock = await get_stock_item(db, purchase.stock_id)
     db_stock.quantity -= purchase.quantity
     if db_stock.quantity == 0:
         db_stock.remove(db_stock)
     await db.commit()
     await db.refresh(db_stock)
-
-
-
 
 async def get_popular_products(db: AsyncSession):
     result = await db.execute(
@@ -252,3 +245,18 @@ async def update_seller_password(session: AsyncSession, seller_id: int, password
     seller = result.scalar_one()
     seller.password_hash = password_hash
     await session.commit()
+
+async def load_user(email: str, db: AsyncSession):
+    query = select(Customer).filter(Customer.email == email)
+    result = await db.execute(query)
+    customer = result.scalar_one_or_none()
+    if customer:
+        return customer
+
+    query = select(Seller).filter(Seller.email == email)
+    result = await db.execute(query)
+    seller = result.scalar_one_or_none()
+    if seller:
+        return seller
+
+    return None

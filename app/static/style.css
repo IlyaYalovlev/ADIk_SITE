@@ -27,7 +27,7 @@ header {
     justify-content: space-between;
     align-items: center;
     padding: 0 20px;
-    max-width: 1200px;
+    width: 95%;
     margin: 0 auto;
 }
 
@@ -128,7 +128,7 @@ section {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     text-align: center;
     width: 100%;
-    max-width: 400px;
+    max-width: none; /* Убрано ограничение максимальной ширины */
 }
 
 /* Стили для контейнера продуктов */

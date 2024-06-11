@@ -28,9 +28,9 @@
     <main>
         <section>
             <h2>Самые популярные товары</h2>
-            <div class="products">
+            <div class="products"> <!-- Добавлен класс products -->
                 {% for product in products %}
-                <div class="product">
+                <div class="product"> <!-- Добавлен класс product -->
                     <div class="product-slider">
                         {% if product.image_side_url %}
                         <img src="{{ product.image_side_url }}" alt="Изображение сбоку товара" onerror="handleImageError(this)">

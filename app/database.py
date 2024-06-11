@@ -1,11 +1,7 @@
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
 from contextlib import asynccontextmanager
-load_dotenv("parcer.env")
 
 DATABASE_URL = "postgresql+asyncpg://parcer:parcerpass@localhost/adik_v2"
 
@@ -17,7 +13,7 @@ engine = create_async_engine(
     pool_timeout=30,
 )
 
-AsyncSessionLocal = async_sessionmaker(
+AsyncSessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
     bind=engine,
@@ -27,7 +23,7 @@ AsyncSessionLocal = async_sessionmaker(
 Base = declarative_base()
 
 @asynccontextmanager
-async def get_db():
+async def get_db_session():
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -35,5 +31,7 @@ async def get_db():
         except Exception:
             await session.rollback()
             raise
-        finally:
-            await session.close()
+
+async def get_db():
+    async with get_db_session() as session:
+        yield session
