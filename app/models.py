@@ -6,16 +6,17 @@ from decimal import Decimal
 from passlib.hash import bcrypt
 
 
-class Customer(Base):
-    __tablename__ = 'customers'
+class Users(Base):
+    __tablename__ = 'users'
     id = Column(Integer, primary_key=True, index=True)
-    first_name = Column(String, index=True)
-    last_name = Column(String, index=True)
-    email = Column(String, unique=True, index=True)
-    phone = Column(String)
+    email = Column(String, unique=True, index=True, nullable=False)
+    phone = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
-    total_orders_value = Column(Numeric(10, 2), default=0.0)
+    user_type = Column(String, nullable=False)  # 'customer' или 'seller'
     created_at = Column(TIMESTAMP, server_default=func.now())
+
+    customers = relationship('Customer', back_populates='user')
+    sellers = relationship('Seller', back_populates='user')
 
     def set_password(self, password):
         self.password_hash = bcrypt.hash(password)
@@ -23,25 +24,30 @@ class Customer(Base):
     def check_password(self, password):
         return bcrypt.verify(password, self.password_hash)
 
+class Customer(Base):
+    __tablename__ = 'customers'
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    first_name = Column(String, index=True)
+    last_name = Column(String, index=True)
+    total_orders_value = Column(Numeric(10, 2), default=0.0)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    user = relationship('User', back_populates='customers')
 
 class Seller(Base):
     __tablename__ = 'sellers'
     id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     first_name = Column(String, index=True)
     last_name = Column(String, index=True)
-    email = Column(String, unique=True, index=True)
-    phone = Column(String, unique=True, index=True)
-    password_hash = Column(String, nullable=False)
-    total_orders_value = Column(Numeric(10, 2), default=Decimal('0.00'))
+    total_orders_value = Column(Numeric(10, 2), default=0.0)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
+    user = relationship('User', back_populates='sellers')
     stocks = relationship('Stock', back_populates='seller')
-
-    def set_password(self, password):
-        self.password_hash = bcrypt.hash(password)
-
-    def check_password(self, password):
-        return bcrypt.verify(password, self.password_hash)
 
 class Stock(Base):
     __tablename__ = 'stock'

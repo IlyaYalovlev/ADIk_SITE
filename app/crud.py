@@ -7,7 +7,7 @@ from . import models, schemas
 from decimal import Decimal
 
 from .database import get_db
-from .models import Stock, Product, Customer, Seller
+from .models import Stock, Product, Customer, Seller, Users
 
 
 # Customers
@@ -247,16 +247,15 @@ async def update_seller_password(session: AsyncSession, seller_id: int, password
     await session.commit()
 
 async def load_user(email: str, db: AsyncSession):
-    query = select(Customer).filter(Customer.email == email)
+    query = select(Users).filter(Users.email == email)
     result = await db.execute(query)
-    customer = result.scalar_one_or_none()
-    if customer:
-        return customer
+    user = result.scalar_one_or_none()
+    if user:
+        return user
 
-    query = select(Seller).filter(Seller.email == email)
-    result = await db.execute(query)
-    seller = result.scalar_one_or_none()
-    if seller:
-        return seller
 
     return None
+
+async def get_user(db: AsyncSession, user_id: int):
+    result = await db.execute(select(models.User).filter(models.User.id == user_id))
+    return result.scalars().first()

@@ -16,7 +16,11 @@
             <div class="header-right">
                 <input type="text" class="search-box" placeholder="Поиск...">
                 <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
-                <a href="/login" class="auth-button">Авторизация</a>
+                {% if user %}
+                    <span>{{ user.first_name }} {{ user.last_name }}</span>
+                {% else %}
+                    <a href="/login" class="auth-button">Авторизация</a>
+                {% endif %}
             </div>
         </div>
         <nav>

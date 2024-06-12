@@ -5,9 +5,8 @@ from starlette.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from fastapi_login import LoginManager
 from . import models, schemas, crud
-from .auth import manager
+from .auth import manager, get_current_user, create_access_token
 from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
     get_kids_shoes, load_user
 from .database import engine, get_db, Base
@@ -44,28 +43,28 @@ async def login_form(request: Request):
 # Обработка данных авторизации
 @app.post("/login", response_class=HTMLResponse)
 async def login(request: Request, email: str = Form(...), password: str = Form(...), db: AsyncSession = Depends(get_db)):
-    user = await load_user(email,db)
+    user = await load_user(email, db)
     if not user or not user.check_password(password):
         return templates.TemplateResponse("login.html", {"request": request, "error": "Неверные учетные данные"})
-    access_token = manager.create_access_token(data={"sub": user.id})
-    response = RedirectResponse(url="/", status_code=302)
-    manager.set_cookie(response, access_token)
-    return response
+    access_token = create_access_token(data={"sub": str(user.id)})
+    return {"access_token": access_token, "token_type": "bearer"}
 
-# Маршрут для главной страницы
+# Обновление маршрута для главной страницы
 @app.get("/", response_class=HTMLResponse)
-async def read_index(request: Request, db: AsyncSession = Depends(get_db)):
+async def read_index(request: Request, db: AsyncSession = Depends(get_db), token: str = Depends(manager)):
     user = None
-    token = request.cookies.get(manager.cookie_name)
-    print("User:", user)
-    print("Token:", token)
-    print("Request data:", request)
     if token:
-        user = await manager.get_current_user(token)
+        user = await get_current_user(token)
     products = await get_popular_products(db)
     return templates.TemplateResponse("index.html", {"request": request, "products": products, "user": user})
 
-
+# Обновление маршрута для профиля пользователя
+@app.get("/profile", response_class=HTMLResponse)
+async def profile(request: Request, user=Depends(get_current_user)):
+    if isinstance(user, Customer):
+        return templates.TemplateResponse("profile_customer.html", {"request": request, "user": user})
+    elif isinstance(user, Seller):
+        return templates.TemplateResponse("profile_seller.html", {"request": request, "user": user})
 
 # Маршрут для мужской обуви
 @app.get("/mens-shoes", response_class=HTMLResponse)
