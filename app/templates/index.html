@@ -16,11 +16,7 @@
             <div class="header-right">
                 <input type="text" class="search-box" placeholder="Поиск...">
                 <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
-                {% if user %}
-                    <span>{{ user.first_name }} {{ user.last_name }}</span>
-                {% else %}
-                    <a href="/login" class="auth-button">Авторизация</a>
-                {% endif %}
+                <span id="user-info"></span>
             </div>
         </div>
         <nav>
@@ -32,9 +28,9 @@
     <main>
         <section>
             <h2>Самые популярные товары</h2>
-            <div class="products"> <!-- Добавлен класс products -->
+            <div class="products">
                 {% for product in products %}
-                <div class="product"> <!-- Добавлен класс product -->
+                <div class="product">
                     <div class="product-slider">
                         {% if product.image_side_url %}
                         <img src="{{ product.image_side_url }}" alt="Изображение сбоку товара" onerror="handleImageError(this)">
@@ -59,6 +55,7 @@
     </main>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
+    <script src="/static/scripts.js"></script>
     <script>
         function handleImageError(img) {
             img.style.display = 'none';

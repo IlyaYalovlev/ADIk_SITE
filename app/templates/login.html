@@ -7,12 +7,11 @@
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
-        /* Новые стили для формы авторизации */
         main {
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 80vh; /* Регулируйте высоту по своему усмотрению */
+            height: 80vh;
         }
 
         section {
@@ -66,11 +65,15 @@
     <header>
         <div class="header-container">
             <h1><a href="/">ADIK STORE</a></h1>
-            <div class="header-right">
-                <input type="text" class="search-box" placeholder="Поиск...">
-                <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
-                <a href="/login" class="auth-button">Авторизация</a>
-            </div>
+                <div class="header-right">
+                    <input type="text" class="search-box" placeholder="Поиск...">
+                    <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
+                    {% if user %}
+                        <span>{{ user.first_name }} {{ user.last_name }}</span>
+                    {% else %}
+                        <a href="/login" class="auth-button">Авторизация</a>
+                    {% endif %}
+                </div>
         </div>
         <nav>
             <a href="/mens-shoes">Мужская обувь</a>
@@ -81,7 +84,7 @@
     <main>
         <section>
             <h2>Авторизация</h2>
-            <form method="post" action="/login">
+            <form id="login-form">
                 <div>
                     <label for="email">Электронная почта:</label>
                     <input type="text" id="email" name="email" required>
@@ -92,9 +95,7 @@
                 </div>
                 <button type="submit">Войти</button>
             </form>
-            {% if error %}
-                <p style="color: red;">{{ error }}</p>
-            {% endif %}
+            <p id="error-message" style="color: red; display: none;">Неверные учетные данные</p>
             <div>
                 <a href="/forgot-password">Забыли пароль?</a>
             </div>
@@ -104,6 +105,6 @@
         </section>
     </main>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
+    <script src="/static/scripts.js"></script>
 </body>
 </html>

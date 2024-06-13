@@ -1,115 +1,73 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional
-from datetime import datetime
 from decimal import Decimal
 
-class CustomerBase(BaseModel):
-    first_name: str
-    last_name: str
-    email: str
-    phone: Optional[str] = None
+# User Schemas
+class UserBase(BaseModel):
+    email: EmailStr
 
-class CustomerCreate(BaseModel):
-    first_name: str
-    last_name: str
-    email: str
-    phone: str
+class UserCreate(UserBase):
+    password: str
 
-    class Config:
-        from_attributes = True
-
-class Customer(CustomerBase):
+class User(UserBase):
     id: int
-    total_orders_value: float
-    created_at: datetime
+    is_active: bool
+    is_verified: bool
+    total_orders_value: Optional[Decimal] = Decimal('0.00')
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
-class SellerBase(BaseModel):
-    id: int
-    first_name: str
-    last_name: str
-    email: str
-    phone: str
-    total_orders_value: Decimal
-    created_at: datetime
+class UserDetails(User):
+    pass
 
-    class Config:
-        from_attributes = True
-
-class SellerCreate(BaseModel):
-    first_name: str
-    last_name: str
-    email: str
-    phone: str
-    total_orders_value: Decimal = Decimal('0.00')
-
-    class Config:
-        from_attributes = True
-
-class Seller(SellerBase):
-    id: int
-    total_orders_value: float
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
+# Stock Schemas
 class StockBase(BaseModel):
-    product_id: str
+    product_id: int
     seller_id: int
-    size: float
     quantity: int
-    price: float
-    discount_price: Optional[float] = None
+    price: Decimal
+    discount_price: Optional[Decimal] = None
 
-class StockCreate(BaseModel):
-    product_id: str
-    seller_id: int
-    size: float
-    quantity: int
-    price: float
-    discount_price: float
-
-    class Config:
-        from_attributes = True
+class StockCreate(StockBase):
+    pass
 
 class Stock(StockBase):
     id: int
-    created_at: datetime
-    updated_at: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
-class PurchaseBase(BaseModel):
+# Product Schemas
+class ProductBase(BaseModel):
+    model_name: str
+    gender: str
+    image_side_url: Optional[str] = None
+    image_top_url: Optional[str] = None
+    image_34_url: Optional[str] = None
+
+class ProductCreate(ProductBase):
+    pass
+
+class Product(ProductBase):
     id: int
-    customer_id: int
-    product_id: str
-    stock_id: int
-    seller_id: int
-    quantity: int
-    total_price: Decimal
-    purchase_date: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
-class PurchaseCreate(BaseModel):
+# Purchase Schemas
+class PurchaseBase(BaseModel):
     customer_id: int
-    product_id: str
-    stock_id: int
     seller_id: int
+    stock_id: int
     quantity: int
     total_price: Decimal
 
-    class Config:
-        from_attributes = True
+class PurchaseCreate(PurchaseBase):
+    pass
 
 class Purchase(PurchaseBase):
     id: int
-    purchase_date: datetime
 
     class Config:
-        from_attributes: True
+        orm_mode = True

@@ -1,41 +1,44 @@
+from http import HTTPStatus
+from typing import Optional
+from fastapi import Header
 from fastapi import Depends, HTTPException
 from fastapi_login import LoginManager
 
+from jwt import decode as jwt_decode, PyJWTError
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app import crud
-from app.database import get_db
+
+from app.database import get_db_session, get_db
 from datetime import datetime, timedelta
 import jwt
 
-SECRET = "your-secret-key"
-manager = LoginManager(SECRET, token_url='/login', use_cookie=True)
-
-# Конфигурация для JWT
 SECRET_KEY = "your-secret-key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
+manager = LoginManager(SECRET_KEY, token_url='/login', use_cookie=False)
+
 def create_access_token(data: dict):
+    from datetime import datetime, timedelta
+    from jose import jwt
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(token: str = Depends(manager)):
-    credentials_exception = HTTPException(
-        status_code=HTTPException.status_code,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+async def get_current_user(db: AsyncSession = Depends(get_db), token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(status_code=401, detail="Could not validate credentials", headers={"WWW-Authenticate": "Bearer"})
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
+        payload = jwt_decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
             raise credentials_exception
-    except jwt.JWTError:
+    except PyJWTError:
         raise credentials_exception
-    async with get_db() as db:
-        user = await crud.get_user(db, user_id)
-        if user is None:
-            raise credentials_exception
-        return user
+    user = await crud.get_user_by_email(db, email=email)
+    if user is None:
+        raise credentials_exception
+    return user
+

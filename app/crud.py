@@ -1,4 +1,4 @@
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,40 +7,38 @@ from . import models, schemas
 from decimal import Decimal
 
 from .database import get_db
-from .models import Stock, Product, Customer, Seller, Users
+from .models import Stock, Product, Users
+from .schemas import UserDetails
 
+# User CRUD operations
+async def create_user(db: AsyncSession, user: schemas.UserCreate):
+    db_user = models.Users(**user.dict())
+    db_user.set_password(user.password)
+    db.add(db_user)
+    await db.commit()
+    await db.refresh(db_user)
+    return db_user
 
-# Customers
-async def get_customer(db: AsyncSession, customer_id: int):
-    result = await db.execute(select(models.Customer).filter(models.Customer.id == customer_id))
+async def get_user_by_id(db: AsyncSession, user_id: int):
+    result = await db.execute(select(models.Users).filter(models.Users.id == user_id))
     return result.scalars().first()
 
-async def get_customers(db: AsyncSession, skip: int = 0, limit: int = 10):
-    result = await db.execute(select(models.Customer).offset(skip).limit(limit))
-    return result.scalars().all()
-
-async def create_customer(db: AsyncSession, customer: schemas.CustomerCreate):
-    db_customer = models.Customer(**customer.dict())
-    db.add(db_customer)
-    await db.commit()
-    await db.refresh(db_customer)
-    return db_customer
-
-# Sellers
-async def get_seller(db: AsyncSession, seller_id: int):
-    result = await db.execute(select(models.Seller).filter(models.Seller.id == seller_id))
+async def get_user_by_email(db: AsyncSession, email: str):
+    result = await db.execute(select(models.Users).filter(models.Users.email == email))
     return result.scalars().first()
 
-async def get_sellers(db: AsyncSession, skip: int = 0, limit: int = 10):
-    result = await db.execute(select(models.Seller).offset(skip).limit(limit))
+async def get_users(db: AsyncSession, skip: int = 0, limit: int = 10):
+    result = await db.execute(select(models.Users).offset(skip).limit(limit))
     return result.scalars().all()
 
-async def create_seller(db: AsyncSession, seller: schemas.SellerCreate):
-    db_seller = models.Seller(**seller.dict())
-    db.add(db_seller)
-    await db.commit()
-    await db.refresh(db_seller)
-    return db_seller
+async def update_user_password(db: AsyncSession, user_id: int, new_password: str):
+    db_user = await get_user_by_id(db, user_id)
+    if db_user:
+        db_user.set_password(new_password)
+        await db.commit()
+        await db.refresh(db_user)
+    else:
+        raise HTTPException(status_code=404, detail="User not found")
 
 # Stock
 async def get_stock_item(db: AsyncSession, stock_id: int):
@@ -75,26 +73,35 @@ async def create_purchase(db: AsyncSession, purchase: schemas.PurchaseCreate):
     return db_purchase
 
 async def update_customer(db: AsyncSession, purchase: schemas.PurchaseCreate):
-    db_customer = await get_customer(db, purchase.customer_id)
-    db_customer.total_orders_value += Decimal(purchase.total_price)
-    await db.commit()
-    await db.refresh(db_customer)
+    db_customer = await get_user_by_id(db, purchase.customer_id)
+    if db_customer:
+        db_customer.total_orders_value += Decimal(purchase.total_price)
+        await db.commit()
+        await db.refresh(db_customer)
+    else:
+        raise HTTPException(status_code=404, detail="Customer not found")
 
 async def update_seller(db: AsyncSession, purchase: schemas.PurchaseCreate):
-    db_seller = await get_seller(db, purchase.seller_id)
-    if db_seller.total_orders_value is None:
-        db_seller.total_orders_value = Decimal('0.00')
-    db_seller.total_orders_value += Decimal(purchase.total_price)
-    await db.commit()
-    await db.refresh(db_seller)
+    db_seller = await get_user_by_id(db, purchase.seller_id)
+    if db_seller:
+        if db_seller.total_orders_value is None:
+            db_seller.total_orders_value = Decimal('0.00')
+        db_seller.total_orders_value += Decimal(purchase.total_price)
+        await db.commit()
+        await db.refresh(db_seller)
+    else:
+        raise HTTPException(status_code=404, detail="Seller not found")
 
 async def update_stock(db: AsyncSession, purchase: schemas.PurchaseCreate):
     db_stock = await get_stock_item(db, purchase.stock_id)
-    db_stock.quantity -= purchase.quantity
-    if db_stock.quantity == 0:
-        db_stock.remove(db_stock)
-    await db.commit()
-    await db.refresh(db_stock)
+    if db_stock:
+        db_stock.quantity -= purchase.quantity
+        if db_stock.quantity == 0:
+            db.delete(db_stock)
+        await db.commit()
+        await db.refresh(db_stock)
+    else:
+        raise HTTPException(status_code=404, detail="Stock item not found")
 
 async def get_popular_products(db: AsyncSession):
     result = await db.execute(
@@ -118,11 +125,8 @@ async def get_popular_products(db: AsyncSession):
         products.append(product_data)
     return products
 
-
 async def get_mens_shoes(db: AsyncSession, page: int, per_page: int):
     offset = (page - 1) * per_page
-
-    # Запрос для получения мужских кроссовок с учетом пагинации
     result = await db.execute(
         select(Stock)
         .join(Product)
@@ -132,8 +136,6 @@ async def get_mens_shoes(db: AsyncSession, page: int, per_page: int):
         .limit(per_page)
     )
     stocks = result.scalars().all()
-
-    # Запрос для получения общего количества мужских кроссовок
     total_query = await db.execute(
         select(func.count())
         .select_from(Stock)
@@ -141,7 +143,6 @@ async def get_mens_shoes(db: AsyncSession, page: int, per_page: int):
         .filter(Product.gender.in_(['M', 'U']))
     )
     total = total_query.scalar_one()
-
     products = []
     for stock in stocks:
         product_data = {
@@ -154,13 +155,10 @@ async def get_mens_shoes(db: AsyncSession, page: int, per_page: int):
             "discount": round((1 - stock.discount_price / stock.price) * 100, 2) if stock.price else 0,
         }
         products.append(product_data)
-
     return products, total
 
 async def get_kids_shoes(db: AsyncSession, page: int, per_page: int):
     offset = (page - 1) * per_page
-
-    # Запрос для получения мужских кроссовок с учетом пагинации
     result = await db.execute(
         select(Stock)
         .join(Product)
@@ -170,8 +168,6 @@ async def get_kids_shoes(db: AsyncSession, page: int, per_page: int):
         .limit(per_page)
     )
     stocks = result.scalars().all()
-
-    # Запрос для получения общего количества мужских кроссовок
     total_query = await db.execute(
         select(func.count())
         .select_from(Stock)
@@ -179,7 +175,6 @@ async def get_kids_shoes(db: AsyncSession, page: int, per_page: int):
         .filter(Product.gender.in_(['K']))
     )
     total = total_query.scalar_one()
-
     products = []
     for stock in stocks:
         product_data = {
@@ -192,32 +187,26 @@ async def get_kids_shoes(db: AsyncSession, page: int, per_page: int):
             "discount": round((1 - stock.discount_price / stock.price) * 100, 2) if stock.price else 0,
         }
         products.append(product_data)
-
     return products, total
 
 async def get_womens_shoes(db: AsyncSession, page: int, per_page: int):
     offset = (page - 1) * per_page
-
-    # Запрос для получения мужских кроссовок с учетом пагинации
     result = await db.execute(
         select(Stock)
         .join(Product)
         .options(selectinload(Stock.product))
-        .filter(Product.gender.in_(['W','U']))
+        .filter(Product.gender.in_(['W', 'U']))
         .offset(offset)
         .limit(per_page)
     )
     stocks = result.scalars().all()
-
-    # Запрос для получения общего количества мужских кроссовок
     total_query = await db.execute(
         select(func.count())
         .select_from(Stock)
         .join(Product)
-        .filter(Product.gender.in_(['W','U']))
+        .filter(Product.gender.in_(['W', 'U']))
     )
     total = total_query.scalar_one()
-
     products = []
     for stock in stocks:
         product_data = {
@@ -230,32 +219,7 @@ async def get_womens_shoes(db: AsyncSession, page: int, per_page: int):
             "discount": round((1 - stock.discount_price / stock.price) * 100, 2) if stock.price else 0,
         }
         products.append(product_data)
-
     return products, total
 
-
-async def update_customer_password(session: AsyncSession, customer_id: int, password_hash: str):
-    result = await session.execute(select(Customer).filter(Customer.id == customer_id))
-    customer = result.scalar_one()
-    customer.password_hash = password_hash
-    await session.commit()
-
-async def update_seller_password(session: AsyncSession, seller_id: int, password_hash: str):
-    result = await session.execute(select(Seller).filter(Seller.id == seller_id))
-    seller = result.scalar_one()
-    seller.password_hash = password_hash
-    await session.commit()
-
 async def load_user(email: str, db: AsyncSession):
-    query = select(Users).filter(Users.email == email)
-    result = await db.execute(query)
-    user = result.scalar_one_or_none()
-    if user:
-        return user
-
-
-    return None
-
-async def get_user(db: AsyncSession, user_id: int):
-    result = await db.execute(select(models.User).filter(models.User.id == user_id))
-    return result.scalars().first()
+    return await get_user_by_email(db, email)

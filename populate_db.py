@@ -5,34 +5,29 @@ from faker import Faker
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app import models, schemas
+from app.auth import get_current_user
 from app.database import get_db, get_db_session
-from app.crud import create_seller, create_stock_item, create_customer, create_purchase, update_customer_password, update_seller_password
+from app.crud import create_seller, create_stock_item, create_customer, create_purchase, update_customer_password, \
+    update_seller_password, get_user, load_user, get_user_details, get_customer_by_user_id
 from passlib.context import CryptContext
+from http import HTTPStatus
+from typing import Optional
+from fastapi import Header
+from fastapi import Depends, HTTPException
+from fastapi_login import LoginManager
+from app import crud
+from app.database import get_db_session
+from datetime import datetime, timedelta
+import jwt
 
-from app.models import Customer, Seller
+SECRET_KEY = "your-secret-key"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+manager = LoginManager(SECRET_KEY, token_url='/login', use_cookie=False)
+from app.models import Customer, Seller, Users
 
 fake = Faker()
-
-
-async def get_products(session: AsyncSession):
-    result = await session.execute(select(models.Product))
-    products = result.scalars().all()
-    return products
-
-async def get_stock_items(session: AsyncSession):
-    result = await session.execute(select(models.Stock))
-    stock_items = result.scalars().all()
-    return stock_items
-
-async def get_sellers(session: AsyncSession):
-    result = await session.execute(select(models.Seller))
-    sellers = result.scalars().all()
-    return sellers
-
-async def get_customers(session: AsyncSession):
-    result = await session.execute(select(models.Customer))
-    customers = result.scalars().all()
-    return customers
 
 async def create_random_sellers_and_stock():
     seller_data = []
@@ -44,7 +39,7 @@ async def create_random_sellers_and_stock():
             first_name=fake.first_name(),
             last_name=fake.last_name(),
             email=fake.email(),
-            phone=phone_number
+            phone=phone_number,
         )
         seller_data.append(seller_data_temp)
     async with get_db() as session:
@@ -123,36 +118,38 @@ async def create_random_customers_and_purchases():
 
 async def add_random_passwords():
     customer_passwords = {}
-    seller_passwords = {}
+
 
     async with get_db_session() as session:
-        customers = await session.execute(select(Customer))
-        customers = customers.scalars().all()
-        for customer in customers:
+        users = await session.execute(select(Users))
+        users = users.scalars().all()
+        for user in users:
             random_password = fake.password()
-            customer.set_password(random_password)
-            customer_passwords[customer.email] = random_password
+            user.set_password(random_password)
+            print(random_password)
+            customer_passwords[user.email] = random_password
 
-    async with get_db_session() as session:
-        sellers = await session.execute(select(Seller))
-        sellers = sellers.scalars().all()
-        for seller in sellers:
-            random_password = fake.password()
-            seller.set_password(random_password)
-            seller_passwords[seller.email] = random_password
 
     # Сохранение паролей в файл
     with open("passwords.txt", "w") as f:
-        f.write("Customer Passwords:\n")
+        f.write("Users Passwords:\n")
         for customer_id, password in customer_passwords.items():
             f.write(f"Customer ID: {customer_id}, Password: {password}\n")
-        f.write("\nSeller Passwords:\n")
-        for seller_id, password in seller_passwords.items():
-            f.write(f"Seller ID: {seller_id}, Password: {password}\n")
+async def check_passy():
+    async with get_db_session() as session:
+        email = 'davidlane@example.org'
+        user = await load_user(email, session)
+        #user = await get_user(session, 18)
+        #user.set_password('y2^3Owdu#)')
+        print(user.check_password('L^(6m6DatJ'))
+
+
+
+
 
 if __name__ == "__main__":
-    # asyncio.run(create_random_sellers_and_stock())
-    # asyncio.run(create_random_customers_and_purchases())
+    asyncio.run(create_random_sellers_and_stock())
+    asyncio.run(create_random_customers_and_purchases())
     asyncio.run(add_random_passwords())
 
 

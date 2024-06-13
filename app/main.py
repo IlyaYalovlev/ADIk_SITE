@@ -1,16 +1,20 @@
 import os
+from typing import Optional
+from fastapi import Header
+from jwt import decode as jwt_decode, PyJWTError
 from fastapi import FastAPI, Depends, HTTPException, Form, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.responses import HTMLResponse, RedirectResponse
+from starlette.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from . import models, schemas, crud
 from .auth import manager, get_current_user, create_access_token
 from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
-    get_kids_shoes, load_user
+    get_kids_shoes, load_user, get_user
 from .database import engine, get_db, Base
-from .models import Customer, Seller
+from .models import  Users
+from .schemas import UserDetails
 
 app = FastAPI()
 
@@ -29,34 +33,56 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 
-# Создание таблиц в базе данных при старте приложения
-@app.on_event("startup")
-async def startup():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
 # Маршрут для отображения формы авторизации
 @app.get("/login", response_class=HTMLResponse)
 async def login_form(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 # Обработка данных авторизации
-@app.post("/login", response_class=HTMLResponse)
-async def login(request: Request, email: str = Form(...), password: str = Form(...), db: AsyncSession = Depends(get_db)):
+@app.post("/login")
+async def login(request: Request, email: str = Form(...), password: str = Form(...),
+                db: AsyncSession = Depends(get_db)):
     user = await load_user(email, db)
-    if not user or not user.check_password(password):
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Неверные учетные данные"})
-    access_token = create_access_token(data={"sub": str(user.id)})
-    return {"access_token": access_token, "token_type": "bearer"}
+
+    if user.check_password(password):
+        access_token = create_access_token(data={"sub": str(user.id)})
+        return JSONResponse(status_code=200, content={"access_token": access_token})
+    else:
+        return JSONResponse(status_code=401, content={"error": "Неверные учетные данные"})
+
+@app.get("/user-info", response_model=UserDetails)
+async def read_user_info(authorization: Optional[str] = Header(), db: AsyncSession = Depends(get_db)):
+    print(authorization)
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        print(token)
+        payload = jwt_decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = int(payload.get("sub"))
+        user = await get_user(db, user_id)
+        return user.id, user.first_name, user.last_name, user.user_type
+
+
+
 
 # Обновление маршрута для главной страницы
 @app.get("/", response_class=HTMLResponse)
-async def read_index(request: Request, db: AsyncSession = Depends(get_db), token: str = Depends(manager)):
+@app.post("/", response_class=HTMLResponse)
+async def read_index(request: Request, authorization: Optional[str] = Header(None), db: AsyncSession = Depends(get_db)):
     user = None
-    if token:
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
         user = await get_current_user(token)
+        if user:
+            if user.user_type == 'customer':
+                user = await get_customer_by_user_id(user.id)
+            elif user.user_type == 'seller':
+                user = await get_seller_by_user_id(user.id)
+    print(authorization)  # Логирование заголовка Authorization для отладки
     products = await get_popular_products(db)
-    return templates.TemplateResponse("index.html", {"request": request, "products": products, "user": user})
+    if user:
+        return templates.TemplateResponse("index.html", {"request": request, "products": products, "user": user})
+    else:
+        return templates.TemplateResponse("index.html", {"request": request, "products": products})
 
 # Обновление маршрута для профиля пользователя
 @app.get("/profile", response_class=HTMLResponse)
