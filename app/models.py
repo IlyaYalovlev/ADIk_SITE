@@ -2,9 +2,7 @@ from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, TIMESTAMP
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
-from decimal import Decimal
 from passlib.hash import bcrypt
-
 
 class Users(Base):
     __tablename__ = 'users'
@@ -12,12 +10,14 @@ class Users(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     phone = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
-    user_type = Column(String, nullable=False)  # 'customer' или 'seller'
+    user_type = Column(String, nullable=False) # 'customer' или 'seller'
     first_name = Column(String, index=True)
     last_name = Column(String, index=True)
     total_orders_value = Column(Numeric(10, 2), default=0.0)
-
     created_at = Column(TIMESTAMP, server_default=func.now())
+
+    # Связь с таблицей Stock
+    stocks = relationship("Stock", back_populates="seller", cascade="all, delete-orphan")
 
     def set_password(self, password):
         self.password_hash = bcrypt.hash(password)
@@ -25,10 +25,8 @@ class Users(Base):
     def check_password(self, password):
         return bcrypt.verify(password, self.password_hash)
 
-
 class Stock(Base):
     __tablename__ = 'stock'
-
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(String, ForeignKey('adidas_products.product_id'))
     seller_id = Column(Integer, ForeignKey('users.id'))
@@ -43,7 +41,6 @@ class Stock(Base):
     seller = relationship("Users", back_populates="stocks")
     purchases = relationship("Purchase", back_populates="stock")
 
-
 class Purchase(Base):
     __tablename__ = 'purchases'
     id = Column(Integer, primary_key=True, index=True)
@@ -54,12 +51,13 @@ class Purchase(Base):
     quantity = Column(Integer)
     total_price = Column(Numeric(10, 2))
     purchase_date = Column(TIMESTAMP, server_default=func.now())
-    stock = relationship("Stock", back_populates="purchases")
 
+    stock = relationship("Stock", back_populates="purchases")
+    customer = relationship("Users", foreign_keys=[customer_id])
+    seller = relationship("Users", foreign_keys=[seller_id])
 
 class Product(Base):
     __tablename__ = 'adidas_products'
-
     product_id = Column(String, primary_key=True, index=True)
     brand = Column(String)
     category = Column(String)

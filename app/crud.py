@@ -1,19 +1,15 @@
-from fastapi import Depends, HTTPException
+from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from . import models, schemas
 from decimal import Decimal
-
-from .database import get_db
 from .models import Stock, Product, Users
-from .schemas import UserDetails
 
 # User CRUD operations
 async def create_user(db: AsyncSession, user: schemas.UserCreate):
     db_user = models.Users(**user.dict())
-    db_user.set_password(user.password)
     db.add(db_user)
     await db.commit()
     await db.refresh(db_user)
@@ -97,7 +93,7 @@ async def update_stock(db: AsyncSession, purchase: schemas.PurchaseCreate):
     if db_stock:
         db_stock.quantity -= purchase.quantity
         if db_stock.quantity == 0:
-            db.delete(db_stock)
+            await db.delete(db_stock)
         await db.commit()
         await db.refresh(db_stock)
     else:
@@ -221,5 +217,15 @@ async def get_womens_shoes(db: AsyncSession, page: int, per_page: int):
         products.append(product_data)
     return products, total
 
-async def load_user(email: str, db: AsyncSession):
-    return await get_user_by_email(db, email)
+async def get_products(session: AsyncSession):
+    result = await session.execute(select(models.Product))
+    products = result.scalars().all()
+    return products
+
+async def get_customers(session: AsyncSession):
+    result = await session.execute(select(Users).where(Users.user_type == 'customer'))
+    return result.scalars().all()
+
+async def get_sellers(session: AsyncSession):
+    result = await session.execute(select(Users).where(Users.user_type == 'seller'))
+    return result.scalars().all()

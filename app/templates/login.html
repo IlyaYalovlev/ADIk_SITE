@@ -13,7 +13,6 @@
             align-items: center;
             height: 80vh;
         }
-
         section {
             background-color: #f9f9f9;
             padding: 20px;
@@ -22,11 +21,9 @@
             width: 300px;
             text-align: center;
         }
-
         form {
             margin-top: 20px;
         }
-
         input[type="text"],
         input[type="password"] {
             width: 100%;
@@ -35,7 +32,6 @@
             border: 1px solid #ccc;
             border-radius: 5px;
         }
-
         button[type="submit"] {
             width: 100%;
             padding: 10px;
@@ -46,16 +42,13 @@
             border-radius: 5px;
             cursor: pointer;
         }
-
         button[type="submit"]:hover {
             background-color: #45a049;
         }
-
         a {
             text-decoration: none;
             color: #1e90ff;
         }
-
         a:hover {
             text-decoration: underline;
         }
@@ -65,20 +58,16 @@
     <header>
         <div class="header-container">
             <h1><a href="/">ADIK STORE</a></h1>
-                <div class="header-right">
-                    <input type="text" class="search-box" placeholder="Поиск...">
-                    <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
-                    {% if user %}
-                        <span>{{ user.first_name }} {{ user.last_name }}</span>
-                    {% else %}
-                        <a href="/login" class="auth-button">Авторизация</a>
-                    {% endif %}
-                </div>
+            <div class="header-right">
+                <input type="text" class="search-box" placeholder="Поиск...">
+                <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
+                <a href="/login" class="auth-button">Авторизация</a>
+            </div>
         </div>
         <nav>
             <a href="/mens-shoes">Мужская обувь</a>
             <a href="/womens-shoes">Женская обувь</a>
-            <a href="/kids-shoes" >Детская обувь</a>
+            <a href="/kids-shoes">Детская обувь</a>
         </nav>
     </header>
     <main>
@@ -105,6 +94,5 @@
         </section>
     </main>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <script src="/static/scripts.js"></script>
 </body>
 </html>

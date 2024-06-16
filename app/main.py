@@ -1,19 +1,19 @@
 import os
 from typing import Optional
+from fastapi import HTTPException, status
+from jwt.exceptions import ExpiredSignatureError
 from fastapi import Header
-from jwt import decode as jwt_decode, PyJWTError
+from jwt import decode as jwt_decode
 from fastapi import FastAPI, Depends, HTTPException, Form, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.responses import HTMLResponse, RedirectResponse, JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from . import models, schemas, crud
-from .auth import manager, get_current_user, create_access_token
-from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
-    get_kids_shoes, load_user, get_user
-from .database import engine, get_db, Base
-from .models import  Users
+from . import schemas, crud
+from .auth import get_current_user, create_access_token
+from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, get_kids_shoes, get_user_by_id, get_user_by_email
+from .database import get_db
 from .schemas import UserDetails
 
 app = FastAPI()
@@ -32,7 +32,6 @@ SECRET_KEY = "your-secret-key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-
 # Маршрут для отображения формы авторизации
 @app.get("/login", response_class=HTMLResponse)
 async def login_form(request: Request):
@@ -40,10 +39,8 @@ async def login_form(request: Request):
 
 # Обработка данных авторизации
 @app.post("/login")
-async def login(request: Request, email: str = Form(...), password: str = Form(...),
-                db: AsyncSession = Depends(get_db)):
-    user = await load_user(email, db)
-
+async def login(request: Request, email: str = Form(...), password: str = Form(...), db: AsyncSession = Depends(get_db)):
+    user = await get_user_by_email(db, email)
     if user.check_password(password):
         access_token = create_access_token(data={"sub": str(user.id)})
         return JSONResponse(status_code=200, content={"access_token": access_token})
@@ -51,18 +48,19 @@ async def login(request: Request, email: str = Form(...), password: str = Form(.
         return JSONResponse(status_code=401, content={"error": "Неверные учетные данные"})
 
 @app.get("/user-info", response_model=UserDetails)
-async def read_user_info(authorization: Optional[str] = Header(), db: AsyncSession = Depends(get_db)):
-    print(authorization)
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ")[1]
-        print(token)
+async def read_user_info(request: Request, db: AsyncSession = Depends(get_db)):
+    headers = request.headers
+    authorization = headers.get('authorization')
+    if authorization is None or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid Authorization header")
+    token = authorization.split(" ")[1]
+    try:
         payload = jwt_decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = int(payload.get("sub"))
-        user = await get_user(db, user_id)
-        return user.id, user.first_name, user.last_name, user.user_type
-
-
-
+        user = await get_user_by_id(db, user_id)
+        return JSONResponse(content={"id": user.id, "first_name": user.first_name, "last_name": user.last_name})
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT token has expired")
 
 # Обновление маршрута для главной страницы
 @app.get("/", response_class=HTMLResponse)
@@ -72,34 +70,24 @@ async def read_index(request: Request, authorization: Optional[str] = Header(Non
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
         user = await get_current_user(token)
-        if user:
-            if user.user_type == 'customer':
-                user = await get_customer_by_user_id(user.id)
-            elif user.user_type == 'seller':
-                user = await get_seller_by_user_id(user.id)
-    print(authorization)  # Логирование заголовка Authorization для отладки
     products = await get_popular_products(db)
-    if user:
-        return templates.TemplateResponse("index.html", {"request": request, "products": products, "user": user})
-    else:
-        return templates.TemplateResponse("index.html", {"request": request, "products": products})
+    return templates.TemplateResponse("index.html", {"request": request, "products": products})
 
 # Обновление маршрута для профиля пользователя
 @app.get("/profile", response_class=HTMLResponse)
 async def profile(request: Request, user=Depends(get_current_user)):
-    if isinstance(user, Customer):
+    if user.user_type == 'customer':
         return templates.TemplateResponse("profile_customer.html", {"request": request, "user": user})
-    elif isinstance(user, Seller):
+    elif user.user_type == 'seller':
         return templates.TemplateResponse("profile_seller.html", {"request": request, "user": user})
 
 # Маршрут для мужской обуви
 @app.get("/mens-shoes", response_class=HTMLResponse)
 @app.get("/mens-shoes/{page}", response_class=HTMLResponse)
 async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
-    per_page = 24  # количество товаров на одной странице
+    per_page = 24 # количество товаров на одной странице
     products, total = await get_mens_shoes(db, page, per_page)
-    total_pages = (total + per_page - 1) // per_page  # вычисляем общее количество страниц
-
+    total_pages = (total + per_page - 1) // per_page # вычисляем общее количество страниц
     return templates.TemplateResponse("mens_shoes.html", {
         "request": request,
         "products": products,
@@ -110,11 +98,10 @@ async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends
 # Маршрут для женской обуви
 @app.get("/womens-shoes", response_class=HTMLResponse)
 @app.get("/womens-shoes/{page}", response_class=HTMLResponse)
-async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
-    per_page = 24  # количество товаров на одной странице
+async def womens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
+    per_page = 24 # количество товаров на одной странице
     products, total = await get_womens_shoes(db, page, per_page)
-    total_pages = (total + per_page - 1) // per_page  # вычисляем общее количество страниц
-
+    total_pages = (total + per_page - 1) // per_page # вычисляем общее количество страниц
     return templates.TemplateResponse("womens_shoes.html", {
         "request": request,
         "products": products,
@@ -125,26 +112,16 @@ async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends
 # Маршрут для детской обуви
 @app.get("/kids-shoes", response_class=HTMLResponse)
 @app.get("/kids-shoes/{page}", response_class=HTMLResponse)
-async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
-    per_page = 24  # количество товаров на одной странице
+async def kids_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
+    per_page = 24 # количество товаров на одной странице
     products, total = await get_kids_shoes(db, page, per_page)
-    total_pages = (total + per_page - 1) // per_page  # вычисляем общее количество страниц
-
+    total_pages = (total + per_page - 1) // per_page # вычисляем общее количество страниц
     return templates.TemplateResponse("kids_shoes.html", {
         "request": request,
         "products": products,
         "page": page,
         "total_pages": total_pages
     })
-
-
-# Маршрут для отображения профиля пользователя
-@app.get("/profile", response_class=HTMLResponse)
-async def profile(request: Request, user=Depends(manager)):
-    if isinstance(user, Customer):
-        return templates.TemplateResponse("profile_customer.html", {"request": request, "user": user})
-    elif isinstance(user, Seller):
-        return templates.TemplateResponse("profile_seller.html", {"request": request, "user": user})
 
 # Маршрут для отображения формы восстановления пароля
 @app.get("/forgot-password", response_class=HTMLResponse)
@@ -174,41 +151,7 @@ async def read_purchases(request: Request, db: AsyncSession = Depends(get_db)):
     purchases = await crud.get_purchases(db)
     return templates.TemplateResponse("purchases.html", {"request": request, "purchases": purchases})
 
-# Создание нового покупателя
-@app.post("/customers/", response_model=schemas.Customer)
-async def create_customer(customer: schemas.CustomerCreate, db: AsyncSession = Depends(get_db)):
-    return await crud.create_customer(db, customer)
 
-# Получение информации о покупателе по ID
-@app.get("/customers/{customer_id}", response_model=schemas.Customer)
-async def read_customer(customer_id: int, db: AsyncSession = Depends(get_db)):
-    db_customer = await crud.get_customer(db, customer_id)
-    if db_customer is None:
-        raise HTTPException(status_code=404, detail="Customer not found")
-    return db_customer
-
-# Получение списка покупателей с поддержкой пагинации
-@app.get("/customers/", response_model=list[schemas.Customer])
-async def read_customers(skip: int = 0, limit: int = 10, db: AsyncSession = Depends(get_db)):
-    return await crud.get_customers(db, skip=skip, limit=limit)
-
-# Создание нового продавца
-@app.post("/sellers/", response_model=schemas.Seller)
-async def create_seller(seller: schemas.SellerCreate, db: AsyncSession = Depends(get_db)):
-    return await crud.create_seller(db, seller)
-
-# Получение информации о продавце по ID
-@app.get("/sellers/{seller_id}", response_model=schemas.Seller)
-async def read_seller(seller_id: int, db: AsyncSession = Depends(get_db)):
-    db_seller = await crud.get_seller(db, seller_id)
-    if db_seller is None:
-        raise HTTPException(status_code=404, detail="Seller not found")
-    return db_seller
-
-# Получение списка продавцов с поддержкой пагинации
-@app.get("/sellers/", response_model=list[schemas.Seller])
-async def read_sellers(skip: int = 0, limit: int = 10, db: AsyncSession = Depends(get_db)):
-    return await crud.get_sellers(db, skip=skip, limit=limit)
 
 # Создание нового товара на складе
 @app.post("/stock/", response_model=schemas.Stock)

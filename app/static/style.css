@@ -103,6 +103,7 @@ nav a:hover {
     text-decoration: none;
     font-weight: bold;
     cursor: pointer;
+    display: inline-block; /* Делаем кнопку блочным элементом */
 }
 
 /* Стили для кнопки авторизации при наведении */

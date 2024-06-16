@@ -1,31 +1,47 @@
+from datetime import datetime
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from decimal import Decimal
 
 # User Schemas
 class UserBase(BaseModel):
-    email: EmailStr
-
-class UserCreate(UserBase):
-    password: str
-
-class User(UserBase):
     id: int
-    is_active: bool
-    is_verified: bool
+    first_name: str
+    last_name: str
+    email: str
+    user_type: str
+    phone: str
+    total_orders_value: Decimal
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+        protected_namespaces = ()
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    first_name: str
+    last_name: str
+    phone: str
+    user_type: str
     total_orders_value: Optional[Decimal] = Decimal('0.00')
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+        protected_namespaces = ()
 
-class UserDetails(User):
-    pass
+class User(UserBase):
+
+    class Config:
+        from_attributes = True
+        protected_namespaces = ()
 
 # Stock Schemas
 class StockBase(BaseModel):
-    product_id: int
+    product_id: str
     seller_id: int
     quantity: int
+    size: float
     price: Decimal
     discount_price: Optional[Decimal] = None
 
@@ -36,7 +52,8 @@ class Stock(StockBase):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+        protected_namespaces = ()
 
 # Product Schemas
 class ProductBase(BaseModel):
@@ -53,7 +70,8 @@ class Product(ProductBase):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+        protected_namespaces = ()
 
 # Purchase Schemas
 class PurchaseBase(BaseModel):
@@ -63,11 +81,28 @@ class PurchaseBase(BaseModel):
     quantity: int
     total_price: Decimal
 
-class PurchaseCreate(PurchaseBase):
-    pass
-
-class Purchase(PurchaseBase):
-    id: int
+class PurchaseCreate(BaseModel):
+    customer_id: int
+    product_id: str
+    stock_id: int
+    seller_id: int
+    quantity: int
+    total_price: Decimal
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+
+class Purchase(PurchaseCreate):
+    id: int
+    purchase_date: datetime
+
+    class Config:
+        from_attributes: True
+
+
+class UserDetails(BaseModel):
+    id: int
+    first_name: str
+    last_name: str
+    user_type: str
+

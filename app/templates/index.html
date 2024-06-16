@@ -8,6 +8,95 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.css"/>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick-theme.min.css"/>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"/>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginForm = document.getElementById('login-form');
+            const errorMessage = document.getElementById('error-message');
+            const userInfo = document.getElementById('user-info');
+
+            if (loginForm) {
+                loginForm.addEventListener('submit', async (event) => {
+                    event.preventDefault();
+
+                    const formData = new FormData(loginForm);
+                    const email = formData.get('email');
+                    const password = formData.get('password');
+
+                    try {
+                        const response = await fetch('/login', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: new URLSearchParams({
+                                email: email,
+                                password: password,
+                            }),
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+
+                            const accessToken = data.access_token;
+                            localStorage.setItem('access_token', accessToken);
+
+                            // Обновление интерфейса для отображения информации о пользователе
+                            updateUserInfo();
+                        } else {
+                            errorMessage.style.display = 'block';
+                        }
+                    } catch (error) {
+                        console.error('Ошибка входа', error);
+                        errorMessage.style.display = 'block';
+                    }
+                });
+            }
+
+            // Функция для обновления информации о пользователе в интерфейсе
+            function updateUserInfo() {
+                const token = localStorage.getItem('access_token');
+
+                if (token) {
+                    fetch('/user-info', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.id) {
+                            const fullName = `${data.first_name} ${data.last_name}`;
+                            userInfo.innerHTML = `<a href="/profile" class="auth-button">${fullName}</a>`;
+                        } else {
+                            userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Не удалось получить информацию о пользователе', error);
+                        userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                    });
+                } else {
+                    userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                }
+            }
+
+            // Вызов функции для обновления информации о пользователе при загрузке страницы
+            updateUserInfo();
+
+            // Инициализация Slick Carousel для слайдеров продуктов
+            $('.product-slider').slick({
+                dots: true, // Добавляем точки навигации (если нужно)
+                arrows: true, // Добавляем стрелки навигации (если нужно)
+                // Другие опции по необходимости
+            });
+        });
+
+        function handleImageError(image) {
+            image.onerror = null;
+            image.src = '/static/default-image.png';
+        }
+    </script>
 </head>
 <body>
     <header>
@@ -35,11 +124,9 @@
                         {% if product.image_side_url %}
                         <img src="{{ product.image_side_url }}" alt="Изображение сбоку товара" onerror="handleImageError(this)">
                         {% endif %}
-
                         {% if product.image_top_url %}
                         <img src="{{ product.image_top_url }}" alt="Изображение товара сверху" onerror="handleImageError(this)">
                         {% endif %}
-
                         {% if product.image_34_url %}
                         <img src="{{ product.image_34_url }}" alt="Изображение товара под углом 34 градуса" onerror="handleImageError(this)">
                         {% endif %}
@@ -55,23 +142,5 @@
     </main>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
-    <script src="/static/scripts.js"></script>
-    <script>
-        function handleImageError(img) {
-            img.style.display = 'none';
-        }
-
-        $(document).ready(function(){
-            $('.product-slider').slick({
-                dots: true,
-                infinite: true,
-                speed: 300,
-                slidesToShow: 1,
-                adaptiveHeight: true,
-                prevArrow: '<button type="button" class="slick-prev">&lt;</button>',
-                nextArrow: '<button type="button" class="slick-next">&gt;</button>',
-            });
-        });
-    </script>
 </body>
 </html>
