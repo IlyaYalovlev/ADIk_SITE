@@ -1,28 +1,231 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <title>Профиль продавца - ADIK STORE</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('profile_token');
+            const userId = window.location.pathname.split('/').pop();
+
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            fetch(`/api/profile_seller/${userId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => {
+                if (response.status === 401 || response.status === 403) {
+                    window.location.href = '/';
+                    return null;
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data) {
+                    document.getElementById('user-email').textContent = data.user.email;
+                    document.getElementById('user-first-name').textContent = data.user.first_name;
+                    document.getElementById('user-last-name').textContent = data.user.last_name;
+                    document.getElementById('user-phone').textContent = data.user.phone;
+                    document.getElementById('total-orders-value').textContent = data.user.total_orders_value;
+                    document.getElementById('sales-table').innerHTML = data.sales.map(sale => `
+                        <tr>
+                            <td>${sale.date}</td>
+                            <td>${sale.product_name}</td>
+                            <td>${sale.quantity}</td>
+                            <td>${sale.total_price}</td>
+                        </tr>
+                    `).join('');
+                    document.getElementById('products-list').innerHTML = data.products.map(product => `
+                        <tr>
+                            <td>${product.name}</td>
+                            <td>${product.price}</td>
+                            <td>${product.size}</td>
+                            <td>${product.stock}</td>
+                        </tr>
+                    `).join('');
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка получения данных профиля', error);
+                window.location.href = '/';
+            });
+
+            document.getElementById('logout-button').addEventListener('click', () => {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('profile_token');
+                window.location.href = '/login';
+            });
+
+            document.getElementById('change-password-form').addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const formData = new FormData(event.target);
+                const oldPassword = formData.get('old_password');
+                const newPassword = formData.get('new_password');
+                const confirmPassword = formData.get('confirm_password');
+
+                if (newPassword !== confirmPassword) {
+                    alert('Новый пароль и подтверждение пароля не совпадают');
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/change-password', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: new URLSearchParams({ old_password: oldPassword, new_password: newPassword })
+                    });
+                    if (response.ok) {
+                        alert('Пароль успешно изменен');
+                    } else {
+                        alert('Ошибка при изменении пароля');
+                    }
+                } catch (error) {
+                    console.error('Ошибка при изменении пароля', error);
+                }
+            });
+
+            function openTab(event, tabId) {
+                const tabContents = document.querySelectorAll('.tab-content');
+                tabContents.forEach(content => content.classList.remove('active'));
+
+                const tabButtons = document.querySelectorAll('.tab-button');
+                tabButtons.forEach(button => button.classList.remove('active'));
+
+                document.getElementById(tabId).classList.add('active');
+                if (event) {
+                    event.currentTarget.classList.add('active');
+                } else {
+                    document.querySelector(`a[href="#${tabId}"]`).classList.add('active');
+                }
+
+                // Обновляем URL с новым хэшем
+                window.location.hash = tabId;
+            }
+
+            // Функция для отображения вкладки при загрузке страницы с хэшем
+            function showTabFromHash() {
+                const hash = window.location.hash.substring(1);
+                if (hash) {
+                    openTab(null, hash);
+                } else {
+                    openTab(null, 'personal-data');
+                }
+            }
+
+            // Слушаем изменения хэша в адресной строке
+            window.addEventListener('hashchange', showTabFromHash);
+
+            // Показать вкладку на основе хэша при загрузке
+            showTabFromHash();
+        });
+    </script>
 </head>
 <body>
     <header>
-        <h1>ADIK STORE</h1>
+        <div class="header-container">
+            <h1><a href="/">ADIK STORE</a></h1>
+            <div class="header-right">
+                <input type="text" class="search-box" placeholder="Поиск...">
+                <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
+                <span id="user-info"></span>
+            </div>
+        </div>
         <nav>
-            <ul>
-                <li><a href="/">Главная</a></li>
-                <li><a href="/customers">Customers</a></li>
-                <li><a href="/sellers">Sellers</a></li>
-                <li><a href="/purchases">Purchases</a></li>
-                <li><a href="/profile">{{ user.email }}</a></li>
-                <li><a href="/logout">Logout</a></li>
-            </ul>
+            <a href="#personal-data" class="tab-button" onclick="openTab(event, 'personal-data')">Личные данные</a>
+            <a href="#sales-history" class="tab-button" onclick="openTab(event, 'sales-history')">История продаж</a>
+            <a href="#products" class="tab-button" onclick="openTab(event, 'products')">Размещенные товары</a>
         </nav>
     </header>
     <main>
-        <h2>Профиль продавца</h2>
-        <p>Email: {{ user.email }}</p>
-        <!-- Здесь будет информация о продавце -->
+        <div id="personal-data" class="tab-content active">
+            <h2>Личные данные</h2>
+            <div class="profile-info">
+                <div>
+                    <label>Email:</label>
+                    <span id="user-email"></span>
+                </div>
+                <div>
+                    <label>Имя:</label>
+                    <span id="user-first-name"></span>
+                </div>
+                <div>
+                    <label>Фамилия:</label>
+                    <span id="user-last-name"></span>
+                </div>
+                <div>
+                    <label>Телефон:</label>
+                    <span id="user-phone"></span>
+                </div>
+            </div>
+            <form id="change-password-form">
+                <div class="form-group">
+                    <label for="old_password">Старый пароль:</label>
+                    <input type="password" id="old_password" name="old_password" required>
+                </div>
+                <div class="form-group">
+                    <label for="new_password">Новый пароль:</label>
+                    <input type="password" id="new_password" name="new_password" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirm_password">Подтвердите новый пароль:</label>
+                    <input type="password" id="confirm_password" name="confirm_password" required>
+                </div>
+                <button type="submit">Изменить пароль</button>
+            </form>
+        </div>
+        <div id="sales-history" class="tab-content">
+            <h2>История продаж</h2>
+            <div class="profile-info">
+                <div>
+                    <label>Общая сумма ваших сделок:</label>
+                    <span id="total-orders-value"></span>
+                </div>
+            </div>
+            <div class="sales-table-container">
+                <table class="sales-table">
+                    <thead>
+                        <tr>
+                            <th>Дата</th>
+                            <th>Товары</th>
+                            <th>Количество</th>
+                            <th>Сумма</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sales-table">
+                        <!-- История продаж -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div id="products" class="tab-content">
+            <h2>Размещенные товары</h2>
+            <button onclick="window.location.href='/new-product'">Разместить новый товар</button>
+            <div class="products-table-container">
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>Название</th>
+                            <th>Цена</th>
+                            <th>Размер</th>
+                            <th>Количество на складе</th>
+                        </tr>
+                    </thead>
+                    <tbody id="products-list">
+                        <!-- Список товаров -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </main>
+    <button id="logout-button">Выйти</button>
 </body>
 </html>

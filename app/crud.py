@@ -2,10 +2,11 @@ from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from . import models, schemas
 from decimal import Decimal
-from .models import Stock, Product, Users
+from .models import Stock, Product, Users, Purchase
+
 
 # User CRUD operations
 async def create_user(db: AsyncSession, user: schemas.UserCreate):
@@ -229,3 +230,59 @@ async def get_customers(session: AsyncSession):
 async def get_sellers(session: AsyncSession):
     result = await session.execute(select(Users).where(Users.user_type == 'seller'))
     return result.scalars().all()
+
+
+async def get_customer_purchases(user_id: int, db: AsyncSession):
+    result = await db.execute(
+        select(Purchase)
+        .options(joinedload(Purchase.stock).joinedload(Stock.product))
+        .where(Purchase.customer_id == user_id)
+    )
+    purchases = result.scalars().all()
+    purchase_list = []
+    for purchase in purchases:
+        purchase_data = {
+            "date": purchase.purchase_date.strftime("%Y-%m-%d %H:%M:%S"),  # форматирование даты и времени
+            "product_name": purchase.stock.product.model_name,  # название продукта
+            "total_price": purchase.total_price  # стоимость
+        }
+        purchase_list.append(purchase_data)
+    return purchase_list
+
+async def get_seller_sales(user_id: int, db: AsyncSession):
+    result = await db.execute(
+        select(Purchase)
+        .options(joinedload(Purchase.stock).joinedload(Stock.product))
+        .where(Purchase.seller_id == user_id)
+    )
+    sales = result.scalars().all()
+    sales_list = []
+    for sale in sales:
+        sale_data = {
+            "date": sale.purchase_date.strftime("%Y-%m-%d %H:%M:%S"),  # форматирование даты и времени
+            "product_name": sale.stock.product.model_name,  # название продукта
+            "total_price": sale.total_price,  # стоимость
+            "quantity": sale.quantity
+        }
+        sales_list.append(sale_data)
+    return sales_list
+
+async def get_seller_products(user_id: int, db: AsyncSession):
+    result = await db.execute(
+        select(Stock)
+        .options(joinedload(Stock.product))
+        .where(Stock.seller_id == user_id)
+    )
+    products = result.scalars().all()
+    product_list = []
+    for product in products:
+        product_data = {
+            "name": product.product.model_name,
+            "price": product.discount_price,
+            "size": product.size,
+            "stock": product.quantity
+        }
+        product_list.append(product_data)
+    return product_list
+
+

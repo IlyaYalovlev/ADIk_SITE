@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from decimal import Decimal
 
@@ -57,11 +57,13 @@ class Stock(StockBase):
 
 # Product Schemas
 class ProductBase(BaseModel):
-    model_name: str
+    model_name: str = Field(alias='model_name')
     gender: str
     image_side_url: Optional[str] = None
     image_top_url: Optional[str] = None
     image_34_url: Optional[str] = None
+    class Config:
+        protected_namespaces = ('model_',)
 
 class ProductCreate(ProductBase):
     pass

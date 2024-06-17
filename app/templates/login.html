@@ -94,5 +94,44 @@
         </section>
     </main>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginForm = document.getElementById('login-form');
+            const errorMessage = document.getElementById('error-message');
+
+            loginForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                const formData = new FormData(loginForm);
+                const email = formData.get('email');
+                const password = formData.get('password');
+
+                try {
+                    const response = await fetch('/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                            email: email,
+                            password: password,
+                        }),
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const accessToken = data.access_token;
+                        localStorage.setItem('access_token', accessToken);
+                        window.location.href = '/';
+                    } else {
+                        errorMessage.style.display = 'block';
+                    }
+                } catch (error) {
+                    console.error('Ошибка входа', error);
+                    errorMessage.style.display = 'block';
+                }
+            });
+        });
+    </script>
 </body>
 </html>

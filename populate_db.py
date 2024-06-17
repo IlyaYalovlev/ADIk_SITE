@@ -10,6 +10,7 @@ from app.database import get_db_session, get_db
 from app.crud import create_stock_item,  get_users, create_user, get_products, \
     get_stock_items, get_customers, get_user_by_id, get_sellers, update_customer, update_seller, update_stock, \
     get_user_by_email
+from app.main import create_purchase
 from fastapi_login import LoginManager
 
 

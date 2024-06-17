@@ -17,7 +17,7 @@
             <div class="header-right">
                 <input type="text" class="search-box" placeholder="Поиск...">
                 <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
-                <a href="/login" class="auth-button">Авторизация</a>
+                <span id="user-info"></span>
             </div>
         </div>
         <nav>
@@ -35,11 +35,9 @@
                         {% if product.image_side_url %}
                         <img src="{{ product.image_side_url }}" alt="Изображение сбоку товара" onerror="handleImageError(this)">
                         {% endif %}
-
                         {% if product.image_top_url %}
                         <img src="{{ product.image_top_url }}" alt="Изображение товара сверху" onerror="handleImageError(this)">
                         {% endif %}
-
                         {% if product.image_34_url %}
                         <img src="{{ product.image_34_url }}" alt="Изображение товара под углом 34 градуса" onerror="handleImageError(this)">
                         {% endif %}
@@ -72,7 +70,42 @@
             img.style.display = 'none';
         }
 
+        function updateUserInfo() {
+            const userInfo = document.getElementById('user-info');
+            const token = localStorage.getItem('access_token');
+
+            if (token) {
+                fetch('/user-info', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.id) {
+                        const fullName = `${data.first_name} ${data.last_name}`;
+                        let profileUrl = `/profile_seller/${data.id}`;
+                        if (data.user_type === 'customer') {
+                            profileUrl = `/profile_customer/${data.id}`;
+                        }
+                        userInfo.innerHTML = `<a href="${profileUrl}" class="auth-button">${fullName}</a>`;
+                    } else {
+                        userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Не удалось получить информацию о пользователе', error);
+                    userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                });
+            } else {
+                userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+            }
+        }
+
         $(document).ready(function(){
+            updateUserInfo();
+
             $('.product-slider').slick({
                 dots: true,
                 infinite: true,

@@ -1,4 +1,5 @@
 import os
+from decimal import Decimal
 from typing import Optional
 from fastapi import HTTPException, status
 from jwt.exceptions import ExpiredSignatureError
@@ -6,13 +7,14 @@ from fastapi import Header
 from jwt import decode as jwt_decode
 from fastapi import FastAPI, Depends, HTTPException, Form, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.responses import HTMLResponse, JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from . import schemas, crud
-from .auth import get_current_user, create_access_token
-from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, get_kids_shoes, get_user_by_id, get_user_by_email
+from .auth import create_access_token, get_current_user_id
+from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
+    get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products
 from .database import get_db
 from .schemas import UserDetails
 
@@ -26,6 +28,8 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Подключаем Jinja2 templates
 templates = Jinja2Templates(directory="app/templates")
+
+
 
 # Конфигурация для fastapi-login
 SECRET_KEY = "your-secret-key"
@@ -58,28 +62,75 @@ async def read_user_info(request: Request, db: AsyncSession = Depends(get_db)):
         payload = jwt_decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = int(payload.get("sub"))
         user = await get_user_by_id(db, user_id)
-        return JSONResponse(content={"id": user.id, "first_name": user.first_name, "last_name": user.last_name})
+        return JSONResponse(content={"id": user.id, "first_name": user.first_name, "last_name": user.last_name, "user_type": user.user_type})
     except ExpiredSignatureError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT token has expired")
+
+
 
 # Обновление маршрута для главной страницы
 @app.get("/", response_class=HTMLResponse)
 @app.post("/", response_class=HTMLResponse)
 async def read_index(request: Request, authorization: Optional[str] = Header(None), db: AsyncSession = Depends(get_db)):
-    user = None
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ")[1]
-        user = await get_current_user(token)
     products = await get_popular_products(db)
     return templates.TemplateResponse("index.html", {"request": request, "products": products})
 
+
+def decimal_to_float(data):
+    if isinstance(data, dict):
+        return {k: decimal_to_float(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [decimal_to_float(v) for v in data]
+    elif isinstance(data, Decimal):
+        return float(data)
+    else:
+        return data
+
 # Обновление маршрута для профиля пользователя
-@app.get("/profile", response_class=HTMLResponse)
-async def profile(request: Request, user=Depends(get_current_user)):
-    if user.user_type == 'customer':
-        return templates.TemplateResponse("profile_customer.html", {"request": request, "user": user})
-    elif user.user_type == 'seller':
-        return templates.TemplateResponse("profile_seller.html", {"request": request, "user": user})
+@app.get("/profile_seller/{user_id}", response_class=HTMLResponse)
+async def profile_seller(user_id: int, request: Request):
+    return templates.TemplateResponse("profile_seller.html", {"request": request})
+
+@app.get("/api/profile_seller/{user_id}", response_class=JSONResponse)
+async def api_profile_seller(user_id: int, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"detail": "Missing or invalid Authorization header"})
+
+    token = authorization.split(" ")[1]
+    current_user_id = get_current_user_id(token)
+
+    if current_user_id is None or current_user_id != user_id:
+        return JSONResponse(status_code=403, content={"detail": "Unauthorized access"})
+
+    try:
+        user = await get_user_by_id(db, user_id)
+        if user.user_type != 'seller':
+            return JSONResponse(status_code=403, content={"detail": "Unauthorized access"})
+
+        # Get seller sales and products
+        sales = await get_seller_sales(user_id, db)
+        products = await get_seller_products(user_id, db)
+
+        response_data = {
+            "user": {
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "phone": user.phone,
+                "total_orders_value": user.total_orders_value
+            },
+            "sales": sales,
+            "products": products
+        }
+
+
+        response_data = decimal_to_float(response_data)
+
+        return JSONResponse(content=response_data)
+    except ExpiredSignatureError:
+        return JSONResponse(status_code=401, content={"detail": "JWT token has expired"})
+
+
 
 # Маршрут для мужской обуви
 @app.get("/mens-shoes", response_class=HTMLResponse)

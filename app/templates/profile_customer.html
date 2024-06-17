@@ -4,6 +4,73 @@
     <meta charset="UTF-8">
     <title>Профиль покупателя - ADIK STORE</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                window.location.href = '/login';
+            }
+
+            fetch('/profile-data', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('user-name').textContent = `${data.first_name} ${data.last_name}`;
+                document.getElementById('user-phone').textContent = data.phone;
+                document.getElementById('purchase-history').innerHTML = data.purchases.map(purchase => `
+                    <tr>
+                        <td>${purchase.date}</td>
+                        <td>${purchase.items}</td>
+                        <td>${purchase.total}</td>
+                    </tr>
+                `).join('');
+            })
+            .catch(error => {
+                console.error('Ошибка получения данных профиля', error);
+            });
+
+            document.getElementById('change-password-form').addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const formData = new FormData(event.target);
+                const oldPassword = formData.get('old_password');
+                const newPassword = formData.get('new_password');
+
+                try {
+                    const response = await fetch('/change-password', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: new URLSearchParams({ old_password: oldPassword, new_password: newPassword })
+                    });
+
+                    if (response.ok) {
+                        alert('Пароль успешно изменен');
+                    } else {
+                        alert('Ошибка при изменении пароля');
+                    }
+                } catch (error) {
+                    console.error('Ошибка при изменении пароля', error);
+                }
+            });
+        });
+
+        function openTab(event, tabId) {
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => content.classList.remove('active'));
+
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(button => button.classList.remove('active'));
+
+            document.getElementById(tabId).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+    </script>
 </head>
 <body>
     <header>
@@ -21,8 +88,37 @@
     </header>
     <main>
         <h2>Профиль покупателя</h2>
-        <p>Email: {{ user.email }}</p>
-        <!-- Здесь будет информация о покупателе -->
+        <div class="tabs">
+            <button class="tab-button active" onclick="openTab(event, 'personal-data')">Личные данные</button>
+            <button class="tab-button" onclick="openTab(event, 'purchase-history')">История покупок</button>
+        </div>
+        <div id="personal-data" class="tab-content active">
+            <p>Email: {{ user.email }}</p>
+            <p>Имя: <span id="user-name"></span></p>
+            <p>Телефон: <span id="user-phone"></span></p>
+            <form id="change-password-form">
+                <label for="old_password">Старый пароль:</label>
+                <input type="password" id="old_password" name="old_password" required>
+                <label for="new_password">Новый пароль:</label>
+                <input type="password" id="new_password" name="new_password" required>
+                <button type="submit">Изменить пароль</button>
+            </form>
+        </div>
+        <div id="purchase-history" class="tab-content">
+            <h3>История покупок</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>Товары</th>
+                        <th>Сумма</th>
+                    </tr>
+                </thead>
+                <tbody id="purchase-history">
+                    <!-- История покупок -->
+                </tbody>
+            </table>
+        </div>
     </main>
 </body>
 </html>

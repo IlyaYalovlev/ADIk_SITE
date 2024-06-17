@@ -258,3 +258,187 @@ nav a.active {
     opacity: 0;
     transition: opacity 0.3s ease;
 }
+
+/* Кнопка выхода */
+#logout-button {
+    position: fixed; /* Позиция в правом нижнем углу */
+    bottom: 10px;
+    right: 10px;
+    background-color: red; /* Цвет фона */
+    color: white; /* Цвет текста */
+    border: none; /* Без границы */
+    padding: 10px 20px; /* Отступы для размера */
+    cursor: pointer; /* Курсор-указатель */
+}
+
+/* Стиль содержимого вкладок */
+.tab-content {
+    display: none; /* Скрывать по умолчанию */
+}
+.tab-content.active {
+    display: block; /* Показывать, когда активно */
+}
+
+/* Стиль кнопок вкладок */
+.tab-button.active {
+    font-weight: bold; /* Жирный текст, когда активно */
+}
+
+/* Стиль информации профиля */
+.profile-info {
+    display: flex;
+    flex-direction: column; /* Вертикальное выравнивание */
+    max-width: 700px; /* Максимальная ширина для информации профиля */
+    margin-bottom: 20px; /* Отступ снизу */
+}
+.profile-info div {
+    display: flex;
+    justify-content: space-between; /* Расстояние между меткой и содержимым */
+    margin-bottom: 10px; /* Отступ снизу для каждого элемента */
+}
+.profile-info label {
+    min-width: 150px; /* Минимальная ширина для меток */
+}
+
+/* Стиль группы формы */
+.form-group {
+    display: flex;
+    justify-content: space-between; /* Расстояние между меткой и вводом */
+    margin-bottom: 10px; /* Отступ снизу */
+}
+.form-group label {
+    min-width: 150px; /* Минимальная ширина для меток */
+}
+.form-group input {
+    flex: 1;
+    max-width: 300px; /* Максимальная ширина для ввода */
+}
+
+/* Стиль формы */
+form {
+    max-width: 700px; /* Максимальная ширина для формы */
+}
+
+/* Стиль контейнера заголовка */
+.header-container {
+    display: flex;
+    justify-content: space-between; /* Расстояние между элементами */
+    align-items: center; /* Центрирование элементов вертикально */
+    padding: 10px;
+}
+
+/* Стиль навигационной панели */
+nav {
+    display: flex;
+    justify-content: center; /* Центрирование навигационных ссылок */
+    background-color: #333; /* Цвет фона */
+    padding: 10px 0;
+}
+nav a {
+    color: white; /* Цвет текста ссылок */
+    margin: 0 10px; /* Отступы между ссылками */
+    text-decoration: none; /* Удалить подчеркивание */
+    padding: 10px 20px; /* Отступы для размера */
+}
+nav a.active, nav a:hover {
+    background-color: #555; /* Цвет фона при наведении/активности */
+}
+
+/* Стили для контейнера таблицы продаж */
+.sales-table-container {
+    max-width: 1000px; /* Максимальная ширина для таблицы продаж */
+    width: 100%; /* Заполнить доступное пространство */
+    overflow-x: auto; /* Добавить горизонтальную прокрутку при необходимости */
+}
+
+
+/* Стили для контейнера таблицы продаж */
+.sales-table-container {
+    max-width: 800px; /* Установим ширину контейнера */
+    width: 100%; /* Заполнить доступное пространство */
+    overflow-x: auto; /* Добавить горизонтальную прокрутку при необходимости */
+    padding: 20px; /* Добавить отступы вокруг контейнера */
+    background: #fff; /* Фон контейнера */
+    border-radius: 10px; /* Радиус границ контейнера */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Тень контейнера */
+    margin: 20px auto; /* Центрирование контейнера и отступы сверху и снизу */
+}
+
+/* Стили для таблицы продаж */
+.sales-table {
+    width: 100%;
+    border-collapse: collapse; /* Убрать промежутки между ячейками */
+    margin-bottom: 20px; /* Отступ снизу */
+}
+
+/* Стили для заголовков таблицы */
+.sales-table th {
+    background-color: #333;
+    color: white;
+    padding: 10px; /* Отступы внутри ячеек заголовков */
+    text-align: left;
+}
+
+/* Стили для ячеек таблицы */
+.sales-table td {
+    background-color: #fff;
+    color: #333;
+    padding: 10px; /* Отступы внутри ячеек */
+    border-bottom: 1px solid #ccc; /* Нижняя граница ячеек */
+}
+
+/* Стили для строк таблицы при наведении */
+.sales-table tr:hover {
+    background-color: #f0f0f0;
+}
+
+/* Стили для общего контейнера информации */
+.profile-info {
+    max-width: 800px; /* Установим ширину контейнера */
+    margin: 20px auto; /* Центрирование контейнера и отступы сверху и снизу */
+    padding: 20px; /* Добавить отступы вокруг контейнера */
+    background: #fff; /* Фон контейнера */
+    border-radius: 10px; /* Радиус границ контейнера */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Тень контейнера */
+}
+}
+
+/* Стили для контейнера таблицы продуктов */
+.products-table-container {
+    max-width: 800px; /* Установим ширину контейнера */
+    width: 100%; /* Заполнить доступное пространство */
+    overflow-x: auto; /* Добавить горизонтальную прокрутку при необходимости */
+    padding: 20px; /* Добавить отступы вокруг контейнера */
+    background: #fff; /* Фон контейнера */
+    border-radius: 10px; /* Радиус границ контейнера */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Тень контейнера */
+    margin: 20px auto; /* Центрирование контейнера и отступы сверху и снизу */
+}
+
+/* Стили для таблицы продуктов */
+.products-table {
+    width: 100%;
+    border-collapse: collapse; /* Убрать промежутки между ячейками */
+    margin-bottom: 20px; /* Отступ снизу */
+}
+
+/* Стили для заголовков таблицы */
+.products-table th {
+    background-color: #333;
+    color: white;
+    padding: 10px; /* Отступы внутри ячеек заголовков */
+    text-align: left;
+}
+
+/* Стили для ячеек таблицы */
+.products-table td {
+    background-color: #fff;
+    color: #333;
+    padding: 10px; /* Отступы внутри ячеек */
+    border-bottom: 1px solid #ccc; /* Нижняя граница ячеек */
+}
+
+/* Стили для строк таблицы при наведении */
+.products-table tr:hover {
+    background-color: #f0f0f0;
+}

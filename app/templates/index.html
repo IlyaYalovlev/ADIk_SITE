@@ -10,49 +10,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"/>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const loginForm = document.getElementById('login-form');
-            const errorMessage = document.getElementById('error-message');
             const userInfo = document.getElementById('user-info');
 
-            if (loginForm) {
-                loginForm.addEventListener('submit', async (event) => {
-                    event.preventDefault();
-
-                    const formData = new FormData(loginForm);
-                    const email = formData.get('email');
-                    const password = formData.get('password');
-
-                    try {
-                        const response = await fetch('/login', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                            },
-                            body: new URLSearchParams({
-                                email: email,
-                                password: password,
-                            }),
-                        });
-
-                        if (response.ok) {
-                            const data = await response.json();
-
-                            const accessToken = data.access_token;
-                            localStorage.setItem('access_token', accessToken);
-
-                            // Обновление интерфейса для отображения информации о пользователе
-                            updateUserInfo();
-                        } else {
-                            errorMessage.style.display = 'block';
-                        }
-                    } catch (error) {
-                        console.error('Ошибка входа', error);
-                        errorMessage.style.display = 'block';
-                    }
-                });
-            }
-
-            // Функция для обновления информации о пользователе в интерфейсе
             function updateUserInfo() {
                 const token = localStorage.getItem('access_token');
 
@@ -67,7 +26,11 @@
                     .then(data => {
                         if (data.id) {
                             const fullName = `${data.first_name} ${data.last_name}`;
-                            userInfo.innerHTML = `<a href="/profile" class="auth-button">${fullName}</a>`;
+                            let profileUrl = `/profile_seller/${data.id}`;
+                            if (data.user_type === 'customer') {
+                                profileUrl = `/profile_customer/${data.id}`;
+                            }
+                            userInfo.innerHTML = `<a href="#" onclick="redirectToProfile('${profileUrl}', '${token}')" class="auth-button">${fullName}</a>`;
                         } else {
                             userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
                         }
@@ -81,20 +44,22 @@
                 }
             }
 
-            // Вызов функции для обновления информации о пользователе при загрузке страницы
             updateUserInfo();
 
-            // Инициализация Slick Carousel для слайдеров продуктов
             $('.product-slider').slick({
-                dots: true, // Добавляем точки навигации (если нужно)
-                arrows: true, // Добавляем стрелки навигации (если нужно)
-                // Другие опции по необходимости
+                dots: true,
+                arrows: true,
             });
         });
 
         function handleImageError(image) {
             image.onerror = null;
             image.src = '/static/default-image.png';
+        }
+
+        function redirectToProfile(profileUrl, token) {
+            localStorage.setItem('profile_token', token);
+            window.location.href = profileUrl;
         }
     </script>
 </head>
