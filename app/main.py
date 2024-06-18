@@ -1,11 +1,14 @@
 import os
 from decimal import Decimal
 from typing import Optional
+
+import jwt
 from fastapi import HTTPException, status
 from jwt.exceptions import ExpiredSignatureError
 from fastapi import Header
 from jwt import decode as jwt_decode
 from fastapi import FastAPI, Depends, HTTPException, Form, Request
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -16,7 +19,9 @@ from .auth import create_access_token, get_current_user_id
 from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
     get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products
 from .database import get_db
-from .schemas import UserDetails
+from .models import Users
+from .schemas import UserDetails, User
+from passlib.hash import bcrypt
 
 app = FastAPI()
 
@@ -51,20 +56,59 @@ async def login(request: Request, email: str = Form(...), password: str = Form(.
     else:
         return JSONResponse(status_code=401, content={"error": "Неверные учетные данные"})
 
+
+@app.post("/change-password")
+async def change_password(request: Request, old_password: str = Form(...), new_password: str = Form(...), db: AsyncSession = Depends(get_db)):
+    authorization = request.headers.get('Authorization')
+    print(authorization)
+    if authorization is None or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid Authorization header")
+
+    token = authorization.split(" ")[1]
+    try:
+        payload = jwt_decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = int(payload.get("sub"))
+        user = await get_user_by_id(db, user_id)
+
+        if not user.check_password(old_password):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Old password is incorrect")
+
+        user.set_password(new_password)
+        db.add(user)
+        await db.commit()
+
+        return JSONResponse(status_code=status.HTTP_200_OK, content={"detail": "Password changed successfully"})
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT token has expired")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
 @app.get("/user-info", response_model=UserDetails)
 async def read_user_info(request: Request, db: AsyncSession = Depends(get_db)):
     headers = request.headers
     authorization = headers.get('authorization')
     if authorization is None or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid Authorization header")
+
     token = authorization.split(" ")[1]
     try:
         payload = jwt_decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = int(payload.get("sub"))
         user = await get_user_by_id(db, user_id)
-        return JSONResponse(content={"id": user.id, "first_name": user.first_name, "last_name": user.last_name, "user_type": user.user_type})
+
+        # Create a new token with a refreshed expiration time
+        new_token = create_access_token(data={"sub": str(user_id)})
+
+        return JSONResponse(content={
+            "id": user.id,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "user_type": user.user_type,
+            "access_token": new_token
+        })
     except ExpiredSignatureError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT token has expired")
+
 
 
 
@@ -86,7 +130,7 @@ def decimal_to_float(data):
     else:
         return data
 
-# Обновление маршрута для профиля пользователя
+# Обновление маршрута для профиля продавца
 @app.get("/profile_seller/{user_id}", response_class=HTMLResponse)
 async def profile_seller(user_id: int, request: Request):
     return templates.TemplateResponse("profile_seller.html", {"request": request})
@@ -130,7 +174,48 @@ async def api_profile_seller(user_id: int, db: AsyncSession = Depends(get_db), a
     except ExpiredSignatureError:
         return JSONResponse(status_code=401, content={"detail": "JWT token has expired"})
 
+# Обновление маршрута для профиля покупателя
+@app.get("/profile_customer/{user_id}", response_class=HTMLResponse)
+async def profile_customer(user_id: int, request: Request):
+    return templates.TemplateResponse("profile_customer.html", {"request": request})
 
+@app.get("/api/profile_customer/{user_id}", response_class=JSONResponse)
+async def api_profile_customer(user_id: int, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"detail": "Missing or invalid Authorization header"})
+
+    token = authorization.split(" ")[1]
+    current_user_id = get_current_user_id(token)
+
+    if current_user_id is None or current_user_id != user_id:
+        return JSONResponse(status_code=403, content={"detail": "Unauthorized access"})
+
+    try:
+        user = await get_user_by_id(db, user_id)
+        if user.user_type != 'customer':
+            return JSONResponse(status_code=403, content={"detail": "Unauthorized access"})
+
+        # Get customer purchases
+        purchases = await get_customer_purchases(user_id, db)
+
+        response_data = {
+            "user": {
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "phone": user.phone,
+                "total_orders_value": user.total_orders_value
+            },
+            "purchases": purchases
+        }
+
+        response_data = decimal_to_float(response_data)
+
+        return JSONResponse(content=response_data)
+    except ExpiredSignatureError:
+        return JSONResponse(status_code=401, content={"detail": "JWT token has expired"})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 # Маршрут для мужской обуви
 @app.get("/mens-shoes", response_class=HTMLResponse)
@@ -183,6 +268,44 @@ async def forgot_password_form(request: Request):
 @app.get("/register", response_class=HTMLResponse)
 async def register_form(request: Request):
     return templates.TemplateResponse("register.html", {"request": request})
+
+@app.post("/register")
+async def register_user(
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    email: str = Form(...),
+    phone: str = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...),
+    role: str = Form(...),
+    db: AsyncSession = Depends(get_db)
+):
+    if password != confirm_password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match")
+
+    email_exists = await db.execute(select(Users).where(Users.email == email))
+    email_exists = email_exists.scalars().first()
+    if email_exists:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
+    phone_exists = await db.execute(select(Users).where(Users.phone == phone))
+    phone_exists = phone_exists.scalars().first()
+    if phone_exists:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phone already registered")
+
+    hashed_password = bcrypt.hash(password)
+    new_user = Users(
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        phone=phone,
+        password_hash=hashed_password,
+        user_type=role
+    )
+    db.add(new_user)
+    await db.commit()
+
+    return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
 # Маршрут для отображения покупателей
 @app.get("/customers", response_class=HTMLResponse)

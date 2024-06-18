@@ -2,6 +2,7 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from decimal import Decimal
+from pydantic_settings import BaseSettings
 
 # User Schemas
 class UserBase(BaseModel):

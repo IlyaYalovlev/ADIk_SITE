@@ -29,7 +29,8 @@
 
         input[type="text"],
         input[type="email"],
-        input[type="password"] {
+        input[type="password"],
+        input[type="tel"] {
             width: 100%;
             padding: 10px;
             margin: 10px 0;
@@ -68,6 +69,11 @@
         a:hover {
             text-decoration: underline;
         }
+
+        #password-mismatch, #email-invalid, #phone-invalid, #email-exists, #phone-exists {
+            color: red;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -83,24 +89,36 @@
         <nav>
             <a href="/mens-shoes">Мужская обувь</a>
             <a href="/womens-shoes">Женская обувь</a>
-            <a href="/kids-shoes" >Детская обувь</a>
+            <a href="/kids-shoes">Детская обувь</a>
         </nav>
     </header>
     <main>
         <section>
             <h2>Регистрация</h2>
-            <form method="post" action="/register">
+            <form id="register-form" method="post" action="/register">
                 <div>
-                    <label for="username">Имя пользователя:</label>
-                    <input type="text" id="username" name="username" required>
+                    <label for="first_name">Имя:</label>
+                    <input type="text" id="first_name" name="first_name" required>
+                </div>
+                <div>
+                    <label for="last_name">Фамилия:</label>
+                    <input type="text" id="last_name" name="last_name" required>
                 </div>
                 <div>
                     <label for="email">Email:</label>
                     <input type="email" id="email" name="email" required>
                 </div>
                 <div>
+                    <label for="phone">Телефон:</label>
+                    <input type="tel" id="phone" name="phone" required>
+                </div>
+                <div>
                     <label for="password">Пароль:</label>
                     <input type="password" id="password" name="password" required>
+                </div>
+                <div>
+                    <label for="confirm_password">Подтвердите пароль:</label>
+                    <input type="password" id="confirm_password" name="confirm_password" required>
                 </div>
                 <div>
                     <label for="role">Регистрация как:</label>
@@ -110,10 +128,97 @@
                     </select>
                 </div>
                 <button type="submit">Зарегистрироваться</button>
+                <p id="password-mismatch">Пароли не совпадают!</p>
+                <p id="email-invalid">Неверный формат email!</p>
+                <p id="phone-invalid">Неверный формат номера телефона!</p>
+                <p id="email-exists">Пользователь с таким email уже зарегистрирован!</p>
+                <p id="phone-exists">Пользователь с таким телефоном уже зарегистрирован!</p>
             </form>
         </section>
     </main>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
+    <script>
+        document.getElementById('password').addEventListener('input', validatePassword);
+        document.getElementById('confirm_password').addEventListener('input', validatePassword);
+        document.getElementById('email').addEventListener('input', validateEmail);
+        document.getElementById('phone').addEventListener('input', validatePhone);
+
+        function validatePassword() {
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            const mismatchMessage = document.getElementById('password-mismatch');
+
+            if (password !== confirmPassword) {
+                mismatchMessage.style.display = 'block';
+            } else {
+                mismatchMessage.style.display = 'none';
+            }
+        }
+
+        function validateEmail() {
+            const email = document.getElementById('email').value;
+            const emailInvalidMessage = document.getElementById('email-invalid');
+            const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+            if (!emailPattern.test(email)) {
+                emailInvalidMessage.style.display = 'block';
+            } else {
+                emailInvalidMessage.style.display = 'none';
+            }
+        }
+
+        function validatePhone() {
+            const phone = document.getElementById('phone').value;
+            const phoneInvalidMessage = document.getElementById('phone-invalid');
+            const phonePattern = /^\+?[1-9]\d{1,14}$/; // Примерный шаблон для международных номеров
+
+            if (!phonePattern.test(phone)) {
+                phoneInvalidMessage.style.display = 'block';
+            } else {
+                phoneInvalidMessage.style.display = 'none';
+            }
+        }
+
+        document.getElementById('register-form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            validatePassword();
+            validateEmail();
+            validatePhone();
+
+            const isFormValid = document.getElementById('password-mismatch').style.display === 'none' &&
+                document.getElementById('email-invalid').style.display === 'none' &&
+                document.getElementById('phone-invalid').style.display === 'none';
+
+            if (!isFormValid) {
+                return;
+            }
+
+            const formData = new FormData(event.target);
+
+            try {
+                const response = await fetch('/register', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    window.location.href = '/login';
+                } else {
+                    const errorData = await response.json();
+                    if (errorData.detail === 'Email already registered') {
+                        document.getElementById('email-exists').style.display = 'block';
+                    } else if (errorData.detail === 'Phone already registered') {
+                        document.getElementById('phone-exists').style.display = 'block';
+                    } else {
+                        alert('Ошибка регистрации: ' + errorData.detail);
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка регистрации:', error);
+                alert('Ошибка регистрации. Пожалуйста, попробуйте позже.');
+            }
+        });
+    </script>
 </body>
 </html>

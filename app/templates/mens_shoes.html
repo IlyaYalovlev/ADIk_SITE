@@ -89,7 +89,8 @@
                         if (data.user_type === 'customer') {
                             profileUrl = `/profile_customer/${data.id}`;
                         }
-                        userInfo.innerHTML = `<a href="${profileUrl}" class="auth-button">${fullName}</a>`;
+                        localStorage.setItem('access_token', data.access_token); // Измененная строка
+                        userInfo.innerHTML = `<a href="#" onclick="redirectToProfile('${profileUrl}', '${data.access_token}')" class="auth-button">${fullName}</a>`; // Измененная строка
                     } else {
                         userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
                     }

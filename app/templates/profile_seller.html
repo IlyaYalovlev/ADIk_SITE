@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/style.css">
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            const userInfo = document.getElementById('user-info');
             const token = localStorage.getItem('profile_token');
             const userId = window.location.pathname.split('/').pop();
 
@@ -69,8 +70,14 @@
                 const newPassword = formData.get('new_password');
                 const confirmPassword = formData.get('confirm_password');
 
+                const passwordRegex = /^(?=.*[A-Z])(?=.*[!@#$%^&*(),.?":{}|<>])[A-Za-z\d!@#$%^&*(),.?":{}|<>]{8,}$/;
                 if (newPassword !== confirmPassword) {
                     alert('Новый пароль и подтверждение пароля не совпадают');
+                    return;
+                }
+
+                if (!passwordRegex.test(newPassword)) {
+                    alert('Новый пароль должен быть не менее 8 символов, содержать хотя бы одну заглавную букву или символ');
                     return;
                 }
 
@@ -127,6 +134,16 @@
             // Показать вкладку на основе хэша при загрузке
             showTabFromHash();
         });
+
+        function handleImageError(image) {
+            image.onerror = null;
+            image.src = '/static/default-image.png';
+        }
+
+        function redirectToProfile(profileUrl, token) {
+            localStorage.setItem('profile_token', token);
+            window.location.href = profileUrl;
+        }
     </script>
 </head>
 <body>
