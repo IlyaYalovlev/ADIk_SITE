@@ -17,7 +17,8 @@ from fastapi.responses import FileResponse
 from . import schemas, crud
 from .auth import create_access_token, get_current_user_id
 from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
-    get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products
+    get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products, \
+    send_email
 from .database import get_db
 from .models import Users
 from .schemas import UserDetails, User
@@ -209,11 +210,8 @@ async def api_profile_customer(user_id: int, db: AsyncSession = Depends(get_db),
             "purchases": purchases
         }
 
-        response_data = decimal_to_float(response_data)
+        return JSONResponse(status_code=200, content=response_data)
 
-        return JSONResponse(content=response_data)
-    except ExpiredSignatureError:
-        return JSONResponse(status_code=401, content={"detail": "JWT token has expired"})
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 

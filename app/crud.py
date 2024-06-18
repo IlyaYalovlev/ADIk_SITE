@@ -1,3 +1,8 @@
+import os
+from email.header import Header
+from email.mime.text import MIMEText
+
+import aiosmtplib
 from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.future import select
@@ -6,6 +11,8 @@ from sqlalchemy.orm import selectinload, joinedload
 from . import models, schemas
 from decimal import Decimal
 from .models import Stock, Product, Users, Purchase
+
+
 
 
 # User CRUD operations
@@ -286,3 +293,27 @@ async def get_seller_products(user_id: int, db: AsyncSession):
     return product_list
 
 
+async def send_email(email: str, msg_text: str):
+    login = os.getenv('EMAIL')
+    password = os.getenv('PASSWORD')
+
+    msg = MIMEText(f'{msg_text}', 'plain', 'utf-8')
+    msg['Subject'] = Header('Adik_store', 'utf-8')
+    msg['From'] = login
+    msg['To'] = email
+
+    smtp_server = 'smtp.yandex.ru'
+    smtp_port = 587
+
+    try:
+        await aiosmtplib.send(
+            msg,
+            hostname=smtp_server,
+            port=smtp_port,
+            start_tls=True,
+            username=login,
+            password=password,
+        )
+        print("Email sent successfully")
+    except Exception as e:
+        print(f"Failed to send email: {e}")

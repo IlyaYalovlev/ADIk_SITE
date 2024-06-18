@@ -1,5 +1,11 @@
 import asyncio
 import random
+import smtplib
+
+import aiosmtplib
+from fastapi import FastAPI, BackgroundTasks
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
+from pydantic import BaseModel, EmailStr
 from decimal import Decimal
 from faker import Faker
 from fastapi import Depends
@@ -12,6 +18,12 @@ from app.crud import create_stock_item,  get_users, create_user, get_products, \
     get_user_by_email
 from app.main import create_purchase
 from fastapi_login import LoginManager
+import os
+import smtplib
+from email.mime.text import MIMEText
+from email.header import Header
+
+
 
 
 SECRET_KEY = "your-secret-key"
@@ -22,6 +34,31 @@ manager = LoginManager(SECRET_KEY, token_url='/login', use_cookie=False)
 from app.models import Users
 
 fake = Faker()
+
+
+async def send_email(email: str, msg_text: str):
+    login = '
+    password = '
+    msg = MIMEText(f'{msg_text}', 'plain', 'utf-8')
+    msg['Subject'] = Header('Adik_store', 'utf-8')
+    msg['From'] = login
+    msg['To'] = email
+
+    smtp_server = 'smtp.yandex.ru'
+    smtp_port = 587
+
+    try:
+        await aiosmtplib.send(
+            msg,
+            hostname=smtp_server,
+            port=smtp_port,
+            start_tls=True,
+            username=login,
+            password=password,
+        )
+        print("Email sent successfully")
+    except Exception as e:
+        print(f"Failed to send email: {e}")
 
 async def create_random_sellers_and_stock():
     stock_data = []
@@ -123,6 +160,7 @@ async def check_passy():
             print("User not found")
 
 if __name__ == "__main__":
+    #asyncio.run(send_email('yak9os@gmail.com', 'соси жопу'))
     #asyncio.run(create_random_sellers_and_stock())
     #asyncio.run(create_random_customers_and_purchases())
     #asyncio.run(add_random_passwords())

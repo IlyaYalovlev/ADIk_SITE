@@ -203,7 +203,10 @@
                 });
 
                 if (response.ok) {
-                    window.location.href = '/login';
+                    alert('Перейдите в почту для завершения регистрации');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 10000); // 10 секунд
                 } else {
                     const errorData = await response.json();
                     if (errorData.detail === 'Email already registered') {
