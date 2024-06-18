@@ -3,6 +3,7 @@ from email.header import Header
 from email.mime.text import MIMEText
 
 import aiosmtplib
+from dotenv import load_dotenv
 from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.future import select
@@ -12,6 +13,7 @@ from . import models, schemas
 from decimal import Decimal
 from .models import Stock, Product, Users, Purchase
 
+load_dotenv('parcer.env')
 
 
 
@@ -294,8 +296,10 @@ async def get_seller_products(user_id: int, db: AsyncSession):
 
 
 async def send_email(email: str, msg_text: str):
+    load_dotenv('parcer.env')
     login = os.getenv('EMAIL')
     password = os.getenv('PASSWORD')
+    print(login, password)
 
     msg = MIMEText(f'{msg_text}', 'plain', 'utf-8')
     msg['Subject'] = Header('Adik_store', 'utf-8')

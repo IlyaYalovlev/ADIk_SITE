@@ -8,7 +8,7 @@ from app import crud
 from app.database import get_db
 from datetime import datetime, timedelta
 import jwt
-
+from itsdangerous import URLSafeTimedSerializer
 from app.models import Users
 
 SECRET = "your-secret-key"
@@ -18,6 +18,7 @@ SECRET = "your-secret-key"
 SECRET_KEY = "your-secret-key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+serializer = URLSafeTimedSerializer(SECRET_KEY)
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -32,3 +33,14 @@ def get_current_user_id(token: str) -> int:
         return int(payload.get("sub"))
     except (ExpiredSignatureError, InvalidTokenError, KeyError):
         return None
+
+
+def generate_confirmation_token(email: str):
+    return serializer.dumps(email, salt='email-confirm-salt')
+
+def confirm_token(token: str, expiration=3600):
+    try:
+        email = serializer.loads(token, salt='email-confirm-salt', max_age=expiration)
+    except:
+        return False
+    return email

@@ -15,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from . import schemas, crud
-from .auth import create_access_token, get_current_user_id
+from .auth import create_access_token, get_current_user_id, generate_confirmation_token, confirm_token
 from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
     get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products, \
     send_email
@@ -263,33 +263,29 @@ async def forgot_password_form(request: Request):
     return templates.TemplateResponse("forgot_password.html", {"request": request})
 
 # Маршрут для отображения формы регистрации
-@app.get("/register", response_class=HTMLResponse)
-async def register_form(request: Request):
-    return templates.TemplateResponse("register.html", {"request": request})
-
 @app.post("/register")
 async def register_user(
-    first_name: str = Form(...),
-    last_name: str = Form(...),
-    email: str = Form(...),
-    phone: str = Form(...),
-    password: str = Form(...),
-    confirm_password: str = Form(...),
-    role: str = Form(...),
-    db: AsyncSession = Depends(get_db)
+        first_name: str = Form(...),
+        last_name: str = Form(...),
+        email: str = Form(...),
+        phone: str = Form(...),
+        password: str = Form(...),
+        confirm_password: str = Form(...),
+        role: str = Form(...),
+        db: AsyncSession = Depends(get_db)
 ):
     if password != confirm_password:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пароли не совпадают")
 
     email_exists = await db.execute(select(Users).where(Users.email == email))
     email_exists = email_exists.scalars().first()
     if email_exists:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email уже зарегистрирован")
 
     phone_exists = await db.execute(select(Users).where(Users.phone == phone))
     phone_exists = phone_exists.scalars().first()
     if phone_exists:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phone already registered")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Телефон уже зарегистрирован")
 
     hashed_password = bcrypt.hash(password)
     new_user = Users(
@@ -298,9 +294,33 @@ async def register_user(
         last_name=last_name,
         phone=phone,
         password_hash=hashed_password,
-        user_type=role
+        user_type=role,
+        is_active=False  # Пользователь не активен до подтверждения почты
     )
     db.add(new_user)
+    await db.commit()
+
+    token = generate_confirmation_token(email)
+    confirm_url = f"http://yourdomain.com/confirm/{token}"
+    msg_text = f"Пройдите по следующей ссылке для подтверждения вашей почты: {confirm_url}"
+    print('отправляю сообщение!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    await send_email(email, msg_text)
+
+    return {"message": "Перейдите в почту для завершения регистрации"}
+
+@app.get("/confirm/{token}", response_class=HTMLResponse)
+async def confirm_email(token: str, db: AsyncSession = Depends(get_db)):
+    email = confirm_token(token)
+    if not email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Недействительная или просроченная ссылка")
+
+    user = await db.execute(select(Users).where(Users.email == email))
+    user = user.scalars().first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пользователь не найден")
+
+    user.is_active = True
+    db.add(user)
     await db.commit()
 
     return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)

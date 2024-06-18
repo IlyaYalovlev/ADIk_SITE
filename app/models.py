@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, TIMESTAMP
+from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, TIMESTAMP, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -15,6 +15,7 @@ class Users(Base):
     last_name = Column(String, index=True)
     total_orders_value = Column(Numeric(10, 2), default=0.0)
     created_at = Column(TIMESTAMP, server_default=func.now())
+    is_active = Column(Boolean, default=False)  # Новое поле для активации пользователя
 
     # Связь с таблицей Stock
     stocks = relationship("Stock", back_populates="seller", cascade="all, delete-orphan")

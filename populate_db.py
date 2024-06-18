@@ -3,6 +3,7 @@ import random
 import smtplib
 
 import aiosmtplib
+from dotenv import load_dotenv
 from fastapi import FastAPI, BackgroundTasks
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic import BaseModel, EmailStr
@@ -13,9 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app import schemas, crud
 from app.database import get_db_session, get_db
-from app.crud import create_stock_item,  get_users, create_user, get_products, \
+from app.crud import create_stock_item, get_users, create_user, get_products, \
     get_stock_items, get_customers, get_user_by_id, get_sellers, update_customer, update_seller, update_stock, \
-    get_user_by_email
+    get_user_by_email, send_email
 from app.main import create_purchase
 from fastapi_login import LoginManager
 import os
@@ -35,30 +36,34 @@ from app.models import Users
 
 fake = Faker()
 
+load_dotenv('app/parcer.env')
 
-async def send_email(email: str, msg_text: str):
-    login = '
-    password = '
-    msg = MIMEText(f'{msg_text}', 'plain', 'utf-8')
-    msg['Subject'] = Header('Adik_store', 'utf-8')
-    msg['From'] = login
-    msg['To'] = email
-
-    smtp_server = 'smtp.yandex.ru'
-    smtp_port = 587
-
-    try:
-        await aiosmtplib.send(
-            msg,
-            hostname=smtp_server,
-            port=smtp_port,
-            start_tls=True,
-            username=login,
-            password=password,
-        )
-        print("Email sent successfully")
-    except Exception as e:
-        print(f"Failed to send email: {e}")
+# async def send_email(email: str, msg_text: str):
+#
+#     login = os.getenv('EMAIL')
+#     password = os.getenv('PASSWORD')
+#     print(login, password)
+#
+#     msg = MIMEText(f'{msg_text}', 'plain', 'utf-8')
+#     msg['Subject'] = Header('Adik_store', 'utf-8')
+#     msg['From'] = login
+#     msg['To'] = email
+#
+#     smtp_server = 'smtp.yandex.ru'
+#     smtp_port = 587
+#
+#     try:
+#         await aiosmtplib.send(
+#             msg,
+#             hostname=smtp_server,
+#             port=smtp_port,
+#             start_tls=True,
+#             username=login,
+#             password=password,
+#         )
+#         print("Email sent successfully")
+#     except Exception as e:
+#         print(f"Failed to send email: {e}")
 
 async def create_random_sellers_and_stock():
     stock_data = []
@@ -160,7 +165,7 @@ async def check_passy():
             print("User not found")
 
 if __name__ == "__main__":
-    #asyncio.run(send_email('yak9os@gmail.com', 'соси жопу'))
+    asyncio.run(send_email('yak9os@gmail.com', 'соси жопу'))
     #asyncio.run(create_random_sellers_and_stock())
     #asyncio.run(create_random_customers_and_purchases())
     #asyncio.run(add_random_passwords())
