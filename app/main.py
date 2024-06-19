@@ -51,7 +51,7 @@ async def login_form(request: Request):
 @app.post("/login")
 async def login(request: Request, email: str = Form(...), password: str = Form(...), db: AsyncSession = Depends(get_db)):
     user = await get_user_by_email(db, email)
-    if user.check_password(password):
+    if user.check_password(password) and user.is_active != False:
         access_token = create_access_token(data={"sub": str(user.id)})
         return JSONResponse(status_code=200, content={"access_token": access_token})
     else:
@@ -210,6 +210,8 @@ async def api_profile_customer(user_id: int, db: AsyncSession = Depends(get_db),
             "purchases": purchases
         }
 
+        response_data = decimal_to_float(response_data)
+
         return JSONResponse(status_code=200, content=response_data)
 
     except Exception as e:
@@ -257,12 +259,59 @@ async def kids_shoes(request: Request, page: int = 1, db: AsyncSession = Depends
         "total_pages": total_pages
     })
 
+
 # Маршрут для отображения формы восстановления пароля
 @app.get("/forgot-password", response_class=HTMLResponse)
 async def forgot_password_form(request: Request):
     return templates.TemplateResponse("forgot_password.html", {"request": request})
 
+
+# Маршрут для обработки формы восстановления пароля
+@app.post("/forgot-password", response_class=HTMLResponse)
+async def forgot_password(request: Request, email: str = Form(...), db: AsyncSession = Depends(get_db)):
+    user = await get_user_by_email(db, email)
+    if user:
+        token = generate_confirmation_token(email)
+        reset_url = f"http://127.0.0.1:8000/reset-password/{token}"
+        msg_text = f"Перейдите по следующей ссылке для смены вашего пароля: {reset_url}"
+        await send_email(email, msg_text)
+    return templates.TemplateResponse("forgot_password_confirmation.html", {"request": request})
+
+
+# Маршрут для отображения формы смены пароля
+@app.get("/reset-password/{token}", response_class=HTMLResponse)
+async def reset_password_form(request: Request, token: str):
+    return templates.TemplateResponse("reset_password.html", {"request": request, "token": token})
+
+
+@app.post("/reset-password/{token}", response_class=HTMLResponse)
+async def reset_password(request: Request, token: str, new_password: str = Form(...), confirm_password: str = Form(...),
+                         db: AsyncSession = Depends(get_db)):
+    if new_password != confirm_password:
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"detail": "Пароли не совпадают"})
+
+    if not any(char.isupper() for char in new_password) and not any(char in "!@#$%^&*" for char in new_password):
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST,
+                            content={"detail": "Пароль должен содержать хотя бы одну заглавную букву или символ"})
+
+    email = confirm_token(token)
+    if not email:
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST,
+                            content={"detail": "Недействительная или просроченная ссылка"})
+
+    user = await get_user_by_email(db, email)
+    if not user:
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"detail": "Пользователь не найден"})
+
+    user.set_password(new_password)
+
+
+    return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
 # Маршрут для отображения формы регистрации
+@app.get("/register", response_class=HTMLResponse)
+async def register_form(request: Request):
+    return templates.TemplateResponse("register.html", {"request": request})
 @app.post("/register")
 async def register_user(
         first_name: str = Form(...),
@@ -301,9 +350,8 @@ async def register_user(
     await db.commit()
 
     token = generate_confirmation_token(email)
-    confirm_url = f"http://yourdomain.com/confirm/{token}"
+    confirm_url = f"http://127.0.0.1:8000/confirm/{token}"
     msg_text = f"Пройдите по следующей ссылке для подтверждения вашей почты: {confirm_url}"
-    print('отправляю сообщение!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
     await send_email(email, msg_text)
 
     return {"message": "Перейдите в почту для завершения регистрации"}

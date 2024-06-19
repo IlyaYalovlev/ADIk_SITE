@@ -2,8 +2,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from contextlib import asynccontextmanager
+from .config import DATABASE_URL as DATABASE_URL1
 
-DATABASE_URL = "postgresql+asyncpg://parcer:parcerpass@localhost/adik_v2"
+DATABASE_URL = DATABASE_URL1
 
 engine = create_async_engine(
     DATABASE_URL,

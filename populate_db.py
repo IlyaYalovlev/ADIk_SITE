@@ -165,9 +165,13 @@ async def check_passy():
             print("User not found")
 
 if __name__ == "__main__":
-    asyncio.run(send_email('yak9os@gmail.com', 'соси жопу'))
+    #asyncio.run(send_email('yak9os@gmail.com', 'соси жопу'))
     #asyncio.run(create_random_sellers_and_stock())
     #asyncio.run(create_random_customers_and_purchases())
     #asyncio.run(add_random_passwords())
     #asyncio.run(check_passy())
     #asyncio.run(check_stock_items())
+    if None != False:
+        print('da')
+    else:
+        print('net')

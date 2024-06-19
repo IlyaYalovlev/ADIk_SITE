@@ -74,6 +74,11 @@
             color: red;
             display: none;
         }
+
+        #register-success {
+            color: green;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -88,7 +93,7 @@
         </div>
         <nav>
             <a href="/mens-shoes">Мужская обувь</a>
-            <a href="/womens-shoes">Женская обувь</a>
+            <a href="/womens-shoes">Женская обувь</а>
             <a href="/kids-shoes">Детская обувь</a>
         </nav>
     </header>
@@ -133,6 +138,7 @@
                 <p id="phone-invalid">Неверный формат номера телефона!</p>
                 <p id="email-exists">Пользователь с таким email уже зарегистрирован!</p>
                 <p id="phone-exists">Пользователь с таким телефоном уже зарегистрирован!</p>
+                <p id="register-success">Перейдите в почту для завершения регистрации.</p>
             </form>
         </section>
     </main>
@@ -203,10 +209,7 @@
                 });
 
                 if (response.ok) {
-                    alert('Перейдите в почту для завершения регистрации');
-                    setTimeout(() => {
-                        window.location.href = '/';
-                    }, 10000); // 10 секунд
+                    document.getElementById('register-success').style.display = 'block';
                 } else {
                     const errorData = await response.json();
                     if (errorData.detail === 'Email already registered') {
