@@ -171,7 +171,3 @@ if __name__ == "__main__":
     #asyncio.run(add_random_passwords())
     #asyncio.run(check_passy())
     #asyncio.run(check_stock_items())
-    if None != False:
-        print('da')
-    else:
-        print('net')

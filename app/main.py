@@ -1,8 +1,6 @@
 import os
 from decimal import Decimal
 from typing import Optional
-
-import jwt
 from fastapi import HTTPException, status
 from jwt.exceptions import ExpiredSignatureError
 from fastapi import Header
@@ -17,12 +15,12 @@ from fastapi.responses import FileResponse
 from . import schemas, crud
 from .auth import create_access_token, get_current_user_id, generate_confirmation_token, confirm_token
 from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
-    get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products, \
-    send_email
+    get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products
 from .database import get_db
 from .models import Users
 from .schemas import UserDetails, User
 from passlib.hash import bcrypt
+from app.tasks.tasks import send_email
 
 app = FastAPI()
 
@@ -34,7 +32,6 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Подключаем Jinja2 templates
 templates = Jinja2Templates(directory="app/templates")
-
 
 
 # Конфигурация для fastapi-login
@@ -274,7 +271,7 @@ async def forgot_password(request: Request, email: str = Form(...), db: AsyncSes
         token = generate_confirmation_token(email)
         reset_url = f"http://127.0.0.1:8000/reset-password/{token}"
         msg_text = f"Перейдите по следующей ссылке для смены вашего пароля: {reset_url}"
-        await send_email(email, msg_text)
+        send_email.delay(email, msg_text)
     return templates.TemplateResponse("forgot_password_confirmation.html", {"request": request})
 
 
@@ -352,7 +349,7 @@ async def register_user(
     token = generate_confirmation_token(email)
     confirm_url = f"http://127.0.0.1:8000/confirm/{token}"
     msg_text = f"Пройдите по следующей ссылке для подтверждения вашей почты: {confirm_url}"
-    await send_email(email, msg_text)
+    await send_email.delay(email, msg_text)
 
     return {"message": "Перейдите в почту для завершения регистрации"}
 
