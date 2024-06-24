@@ -3,12 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADIK STORE</title>
+    <title>Мужская обувь - ADIK STORE</title>
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.css"/>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick-theme.min.css"/>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"/>
-    <link rel="stylesheet" href="/static/custom.css">
+    <style>
+        .product {
+            cursor: pointer;
+        }
+        .product p.model, .product p.price {
+            cursor: pointer;
+        }
+    </style>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const userInfo = document.getElementById('user-info');
@@ -57,6 +64,28 @@
                 prevArrow: '<button type="button" class="slick-prev">&lt;</button>',
                 nextArrow: '<button type="button" class="slick-next">&gt;</button>',
             });
+
+            document.querySelectorAll('.product-slider').forEach(slider => {
+                slider.addEventListener('click', event => {
+                    event.stopPropagation();
+                });
+            });
+
+            document.querySelectorAll('.product-slider img').forEach(img => {
+                img.addEventListener('click', event => {
+                    event.stopPropagation();
+                    const modelName = event.target.closest('.product').dataset.modelName;
+                    redirectToModel(modelName);
+                });
+            });
+
+            document.querySelectorAll('.product p.model, .product p.price').forEach(element => {
+                element.addEventListener('click', event => {
+                    event.stopPropagation();
+                    const modelName = event.target.closest('.product').dataset.modelName;
+                    redirectToModel(modelName);
+                });
+            });
         });
 
         function handleImageError(image) {
@@ -67,6 +96,10 @@
         function redirectToProfile(profileUrl, token) {
             localStorage.setItem('profile_token', token);
             window.location.href = profileUrl;
+        }
+
+        function redirectToModel(modelName) {
+            window.location.href = `/${modelName}`;
         }
     </script>
 </head>
@@ -90,7 +123,7 @@
         <section>
             <div class="products">
                 {% for product in products %}
-                <div class="product">
+                <div class="product" data-model-name="{{ product.model_name }}">
                     <div class="product-slider">
                         {% if product.image_side_url %}
                         <img src="{{ product.image_side_url }}" alt="Изображение сбоку товара" onerror="handleImageError(this)">
@@ -105,7 +138,6 @@
                     <p class="model">{{ product.model_name }}</p>
                     <p class="price"><del>${{ product.price }}</del> <span class="discount-price">${{ product.discount_price }}</span></p>
                     <p class="discount-text">(Скидка {{ ((product.price - product.discount_price) / product.price * 100) | round(0) }}% )</p>
-                    <button class="add-to-cart-button"><i class="fas fa-shopping-cart"></i></button>
                 </div>
                 {% endfor %}
             </div>
@@ -114,7 +146,15 @@
                 {% if page > 1 %}
                 <a href="/mens-shoes/{{ page-1 }}" class="page-link">&laquo; Предыдущая</a>
                 {% endif %}
-                {% for p in range(1, total_pages + 1) %}
+                {% set start_page = (page - 2) | default(1) | int %}
+                {% set end_page = (page + 2) | default(total_pages) | int %}
+                {% if start_page < 1 %}
+                {% set start_page = 1 %}
+                {% endif %}
+                {% if end_page > total_pages %}
+                {% set end_page = total_pages %}
+                {% endif %}
+                {% for p in range(start_page, end_page + 1) %}
                 <a href="/mens-shoes/{{ p }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
                 {% endfor %}
                 {% if page < total_pages %}
