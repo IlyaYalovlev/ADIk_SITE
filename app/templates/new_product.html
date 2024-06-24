@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Добавление нового товара - ADIK STORE</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const userInfo = document.getElementById('user-info');
+            const token = localStorage.getItem('profile_token');
+
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            fetch('/user-info', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.id) {
+                    const fullName = `${data.first_name} ${data.last_name}`;
+                    let profileUrl = `/profile_seller/${data.id}`;
+                    if (data.user_type === 'customer') {
+                        profileUrl = `/profile_customer/${data.id}`;
+                    }
+                    localStorage.setItem('access_token', data.access_token);
+                    userInfo.innerHTML = `<a href="#" onclick="redirectToProfile('${profileUrl}', '${data.access_token}')" class="auth-button">${fullName}</a>`;
+                } else {
+                    userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                }
+            })
+            .catch(error => {
+                console.error('Не удалось получить информацию о пользователе', error);
+                userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+            });
+
+            const modelNameInput = document.getElementById('model-name');
+            const modelList = {{ products|tojson }};
+            const suggestions = document.getElementById('suggestions');
+            const sizeFieldsContainer = document.getElementById('size-fields-container');
+
+            modelNameInput.addEventListener('input', () => {
+                const value = modelNameInput.value.toLowerCase();
+                suggestions.innerHTML = '';
+                modelList.forEach(model => {
+                    if (model.model_name.toLowerCase().includes(value)) {
+                        const option = document.createElement('option');
+                        option.value = model.model_name;
+                        suggestions.appendChild(option);
+                    }
+                });
+            });
+
+            document.getElementById('add-size-button').addEventListener('click', () => {
+                const sizeField = document.createElement('input');
+                sizeField.type = 'number';
+                sizeField.name = 'sizes';
+                sizeField.step = '0.5';
+                sizeField.min = '6';
+                sizeField.max = '14';
+                sizeField.required = true;
+
+                const quantityField = document.createElement('input');
+                quantityField.type = 'number';
+                quantityField.name = 'quantities';
+                quantityField.min = '1';
+                quantityField.required = true;
+
+                sizeFieldsContainer.appendChild(sizeField);
+                sizeFieldsContainer.appendChild(quantityField);
+            });
+        });
+
+        function handleImageError(image) {
+            image.onerror = null;
+            image.src = '/static/default-image.png';
+        }
+
+        function redirectToProfile(profileUrl, token) {
+            localStorage.setItem('profile_token', token);
+            window.location.href = profileUrl;
+        }
+    </script>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <h1><a href="/">ADIK STORE</a></h1>
+            <div class="header-right">
+                <input type="text" class="search-box" placeholder="Поиск...">
+                <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
+                <span id="user-info"></span>
+            </div>
+        </div>
+        <nav>
+            <a href="/mens-shoes">Мужская обувь</a>
+            <a href="/womens-shoes">Женская обувь</a>
+            <a href="/kids-shoes">Детская обувь</a>
+        </nav>
+    </header>
+    <main>
+        <h2>Добавление нового товара</h2>
+        {% if message %}
+        <p>{{ message }}</p>
+        {% endif %}
+        <form action="/new-product" method="post">
+            <label for="model-name">Название товара:</label>
+            <input type="text" id="model-name" name="model_name" list="suggestions" required>
+            <datalist id="suggestions"></datalist>
+            <div id="size-fields-container">
+                <label for="sizes">Размер:</label>
+                <input type="number" name="sizes" step="0.5" min="6" max="14" required>
+                <label for="quantities">Количество:</label>
+                <input type="number" name="quantities" min="1" required>
+            </div>
+            <button type="button" id="add-size-button">Добавить еще размер</button>
+            <label for="price">Цена продавца:</label>
+            <input type="number" name="price" step="0.01" required>
+            <button type="submit">Разместить товар</button>
+        </form>
+    </main>
+</body>
+</html>

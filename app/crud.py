@@ -7,6 +7,8 @@ from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
+
+from config import EMAIL, PASSWORD
 from . import models, schemas
 from decimal import Decimal
 from .models import Stock, Product, Users, Purchase
@@ -110,12 +112,13 @@ async def get_popular_products(db: AsyncSession):
         select(models.Stock)
         .options(selectinload(models.Stock.product), selectinload(models.Stock.seller))
         .order_by(models.Stock.quantity.desc())
-        .limit(24)
+        .limit(28)
     )
     stocks = result.scalars().all()
     products = []
     for stock in stocks:
         product_data = {
+            "product_id": stock.product.product_id,
             "image_side_url": stock.product.image_side_url,
             "image_top_url": stock.product.image_top_url,
             "image_34_url": stock.product.image_34_url,
@@ -148,6 +151,7 @@ async def get_mens_shoes(db: AsyncSession, page: int, per_page: int):
     products = []
     for stock in stocks:
         product_data = {
+            "product_id": stock.product.product_id,
             "image_side_url": stock.product.image_side_url,
             "image_top_url": stock.product.image_top_url,
             "image_34_url": stock.product.image_34_url,
@@ -180,6 +184,7 @@ async def get_kids_shoes(db: AsyncSession, page: int, per_page: int):
     products = []
     for stock in stocks:
         product_data = {
+            "product_id": stock.product.product_id,
             "image_side_url": stock.product.image_side_url,
             "image_top_url": stock.product.image_top_url,
             "image_34_url": stock.product.image_34_url,
@@ -212,6 +217,7 @@ async def get_womens_shoes(db: AsyncSession, page: int, per_page: int):
     products = []
     for stock in stocks:
         product_data = {
+            "product_id": stock.product.product_id,
             "image_side_url": stock.product.image_side_url,
             "image_top_url": stock.product.image_top_url,
             "image_34_url": stock.product.image_34_url,
@@ -314,3 +320,7 @@ async def send_email(email: str, msg_text: str):
         print("Email sent successfully")
     except Exception as e:
         print(f"Failed to send email: {e}")
+
+
+
+

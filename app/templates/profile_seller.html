@@ -133,6 +133,32 @@
 
             // Показать вкладку на основе хэша при загрузке
             showTabFromHash();
+
+            // Переход на страницу добавления нового товара
+            document.getElementById('new-product-button').addEventListener('click', () => {
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                fetch('/new-product', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                })
+                .then(response => {
+                    if (response.redirected) {
+                        window.location.href = response.url;
+                    } else {
+                        window.location.href = '/new-product';
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка перехода на страницу добавления нового товара', error);
+                    window.location.href = '/login';
+                });
+            });
         });
 
         function handleImageError(image) {
@@ -225,7 +251,7 @@
         </div>
         <div id="products" class="tab-content">
             <h2>Размещенные товары</h2>
-            <button onclick="window.location.href='/new-product'">Разместить новый товар</button>
+            <button id="new-product-button">Разместить новый товар</button>
             <div class="products-table-container">
                 <table class="products-table">
                     <thead>

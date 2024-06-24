@@ -70,16 +70,16 @@
             document.querySelectorAll('.product-slider img').forEach(img => {
                 img.addEventListener('click', event => {
                     event.stopPropagation();
-                    const modelName = event.target.closest('.product').dataset.modelName;
-                    redirectToModel(modelName);
+                    const productId = event.target.closest('.product').dataset.productId;
+                    redirectToModel(productId);
                 });
             });
 
             document.querySelectorAll('.product p.model, .product p.price').forEach(element => {
                 element.addEventListener('click', event => {
                     event.stopPropagation();
-                    const modelName = event.target.closest('.product').dataset.modelName;
-                    redirectToModel(modelName);
+                    const productId = event.target.closest('.product').dataset.productId;
+                    redirectToModel(productId);
                 });
             });
         });
@@ -94,8 +94,8 @@
             window.location.href = profileUrl;
         }
 
-        function redirectToModel(modelName) {
-            window.location.href = `/${modelName}`;
+        function redirectToModel(productId) {
+            window.location.href = `/product/${productId}`;
         }
     </script>
 </head>
@@ -120,7 +120,7 @@
             <h2>Самые популярные товары</h2>
             <div class="products">
                 {% for product in products %}
-                <div class="product" data-model-name="{{ product.model_name }}">
+                <div class="product" data-product-id="{{ product.product_id }}">
                     <div class="product-slider">
                         {% if product.image_side_url %}
                         <img src="{{ product.image_side_url }}" alt="Изображение сбоку товара" onerror="handleImageError(this)">
@@ -133,8 +133,10 @@
                         {% endif %}
                     </div>
                     <p class="model">{{ product.model_name }}</p>
-                    <p class="price"><del>{{ product.price }}</del> <span class="discount-price">{{ product.discount_price }}</span></p>
-                    <p class="discount">Скидка: {{ product.discount }}%</p>
+                    <p class="price"><del>${{ product.price }}</del> <span class="discount-price">${{ product.discount_price }}</span></p>
+                    {% if product.discount_price < product.price %}
+                    <p class="discount-text">(Скидка {{ ((product.price - product.discount_price) / product.price * 100) | round(0) }}% )</p>
+                    {% endif %}
                 </div>
                 {% endfor %}
             </div>
