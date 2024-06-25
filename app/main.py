@@ -1,7 +1,8 @@
 import os
+import aiofiles
 from decimal import Decimal
 from typing import Optional, List
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, UploadFile, File
 from jwt.exceptions import ExpiredSignatureError
 from fastapi import Header
 from jwt import decode as jwt_decode
@@ -17,14 +18,17 @@ from . import schemas, crud
 from .auth import create_access_token, get_current_user_id, generate_confirmation_token, confirm_token
 from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
     get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products, \
-    get_products, create_stock_item, paginate_products
+    get_products, create_stock_item, paginate_products, save_image
 from .database import get_db
 from .models import Users, Product, Stock
-from .schemas import UserDetails, User, StockCreate
+from .schemas import UserDetails, User, StockCreate, StockUpdateRequest
 from passlib.hash import bcrypt
 from app.tasks.tasks import send_email
 
 app = FastAPI()
+
+# Настройка маршрута для статических файлов
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Получаем абсолютный путь к директории static
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -167,12 +171,12 @@ async def api_profile_seller(user_id: int, db: AsyncSession = Depends(get_db), a
             "products": products
         }
 
-
         response_data = decimal_to_float(response_data)
 
         return JSONResponse(content=response_data)
     except ExpiredSignatureError:
         return JSONResponse(status_code=401, content={"detail": "JWT token has expired"})
+
 
 # Обновление маршрута для профиля покупателя
 @app.get("/profile_customer/{user_id}", response_class=HTMLResponse)
@@ -236,7 +240,7 @@ async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends
 async def womens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
     per_page = 28 # количество товаров на одной странице
     products, total = await get_womens_shoes(db, page, per_page)
-    paginated_products, total_pages = paginate_products(products, page, per_page)
+    paginated_products, total_pages = await paginate_products(products, page, per_page)
     return templates.TemplateResponse("womens_shoes.html", {
         "request": request,
         "products": paginated_products,
@@ -250,7 +254,7 @@ async def womens_shoes(request: Request, page: int = 1, db: AsyncSession = Depen
 async def kids_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
     per_page = 28 # количество товаров на одной странице
     products, total = await get_kids_shoes(db, page, per_page)
-    paginated_products, total_pages = paginate_products(products, page, per_page)
+    paginated_products, total_pages = await paginate_products(products, page, per_page)
     return templates.TemplateResponse("kids_shoes.html", {
         "request": request,
         "products": paginated_products,
@@ -500,6 +504,7 @@ async def add_new_product(
         return RedirectResponse(url="/login", status_code=307)
 
     token = authorization.split(" ")[1]
+
     try:
         payload = jwt_decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = int(payload.get("sub"))
@@ -534,3 +539,86 @@ async def add_new_product(
     products = await get_products(db)
     product_list = [{"model_name": product.model_name} for product in products]
     return templates.TemplateResponse("new_product.html", {"request": request, "products": product_list, "message": "Product added successfully!"})
+
+@app.get("/create_product", response_class=HTMLResponse)
+async def create_product(request: Request):
+    return templates.TemplateResponse("create_product.html", {"request": request})
+
+
+
+@app.post("/create_product", response_class=HTMLResponse)
+async def create_product_form(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    collection: str = Form(...),
+    model_name: str = Form(...),
+    recommended_price: float = Form(...),
+    gender: str = Form(...),
+    side_view: UploadFile = File(...),
+    top_view: UploadFile = File(...),
+    three_quarter_view: UploadFile = File(...),
+    authorization: Optional[str] = Header(None)
+):
+    print(authorization)
+    if not authorization or not authorization.startswith("Bearer "):
+        return RedirectResponse(url="/login", status_code=307)
+
+    token = authorization.split(" ")[1]
+    try:
+        payload = jwt_decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = int(payload.get("sub"))
+        user = await get_user_by_id(db, user_id)
+        if not user or user.user_type != "seller":
+            return RedirectResponse(url="/login", status_code=307)
+    except ExpiredSignatureError:
+        return RedirectResponse(url="/login", status_code=307)
+    except Exception:
+        return RedirectResponse(url="/login", status_code=307)
+
+    # Save images
+    side_view_url = await save_image(side_view, 'static/uploads')
+    top_view_url = await save_image(top_view, 'static/uploads')
+    three_quarter_view_url = await save_image(three_quarter_view, 'static/uploads')
+
+    new_product = Product(
+        brand=collection,
+        model_name=model_name,
+        price=str(recommended_price-1),
+        discount=str(recommended_price-1),
+        image_side_url=side_view_url,
+        image_top_url=top_view_url,
+        image_34_url=three_quarter_view_url,
+        gender=gender
+    )
+    db.add(new_product)
+    await db.commit()
+
+    return templates.TemplateResponse("create_product.html", {"request": request, "message": "Product created successfully!"})
+
+@app.post("/update-products", response_class=JSONResponse)
+async def update_products(request: StockUpdateRequest, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"detail": "Missing or invalid Authorization header"})
+
+    token = authorization.split(" ")[1]
+    current_user_id = get_current_user_id(token)
+
+    try:
+        for product in request.products:
+            print(f"Updating stock: {product.stock_id} with price: {product.price} and stock: {product.stock}")
+            stmt = select(Stock).where(Stock.id == product.stock_id, Stock.seller_id == current_user_id)
+            result = await db.execute(stmt)
+            stock_entry = result.scalar_one_or_none()
+
+            if stock_entry:
+                stock_entry.discount_price = product.price
+                stock_entry.quantity = product.stock
+                db.add(stock_entry)
+            else:
+                print(f"No stock entry found for stock_id: {product.stock_id} and seller_id: {current_user_id}")
+
+        await db.commit()
+        return JSONResponse(content={"message": "Products updated successfully"})
+    except Exception as e:
+        await db.rollback()
+        return JSONResponse(status_code=500, content={"detail": str(e)})

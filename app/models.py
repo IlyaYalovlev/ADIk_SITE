@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, TIMESTAMP, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -59,11 +61,11 @@ class Purchase(Base):
 
 class Product(Base):
     __tablename__ = 'adidas_products'
-    product_id = Column(String, primary_key=True, index=True)
+    product_id = Column(String, primary_key=True, index=True,  default=lambda: str(uuid.uuid4()))
     brand = Column(String)
     category = Column(String)
     model_name = Column(String)
-    color = Column(String)
+    color = Column(String, default=None)
     price = Column(String)
     discount = Column(String)
     image_side_url = Column(String)

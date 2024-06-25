@@ -3,111 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Детская обувь - ADIK STORE</title>
+    <title>Авторизация - ADIK STORE</title>
     <link rel="stylesheet" href="/static/style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.css"/>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick-theme.min.css"/>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
-        .product {
+        main {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 80vh;
+        }
+        section {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            text-align: center;
+        }
+        form {
+            margin-top: 20px;
+        }
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button[type="submit"] {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
             cursor: pointer;
         }
-        .product p.model, .product p.price {
-            cursor: pointer;
+        button[type="submit"]:hover {
+            background-color: #45a049;
         }
-        .price {
-            color: black;
+        a {
+            text-decoration: none;
+            color: #1e90ff;
         }
-        .discount-price {
-            color: red;
+        a:hover {
+            text-decoration: underline;
         }
     </style>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const userInfo = document.getElementById('user-info');
-
-            function updateUserInfo() {
-                const token = localStorage.getItem('access_token');
-
-                if (token) {
-                    fetch('/user-info', {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.id) {
-                            const fullName = `${data.first_name} ${data.last_name}`;
-                            let profileUrl = `/profile_seller/${data.id}`;
-                            if (data.user_type === 'customer') {
-                                profileUrl = `/profile_customer/${data.id}`;
-                            }
-                            localStorage.setItem('access_token', data.access_token);
-                            userInfo.innerHTML = `<a href="#" onclick="redirectToProfile('${profileUrl}', '${data.access_token}')" class="auth-button">${fullName}</a>`;
-                        } else {
-                            userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Не удалось получить информацию о пользователе', error);
-                        userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
-                    });
-                } else {
-                    userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
-                }
-            }
-
-            updateUserInfo();
-
-            $('.product-slider').slick({
-                dots: true,
-                infinite: true,
-                speed: 300,
-                slidesToShow: 1,
-                adaptiveHeight: true,
-                prevArrow: '<button type="button" class="slick-prev">&lt;</button>',
-                nextArrow: '<button type="button" class="slick-next">&gt;</button>',
-            });
-
-            document.querySelectorAll('.product-slider').forEach(slider => {
-                slider.addEventListener('click', event => {
-                    event.stopPropagation();
-                });
-            });
-
-            document.querySelectorAll('.product-slider img').forEach(img => {
-                img.addEventListener('click', event => {
-                    event.stopPropagation();
-                    const productId = event.target.closest('.product').dataset.productId;
-                    redirectToModel(productId);
-                });
-            });
-
-            document.querySelectorAll('.product p.model, .product p.price').forEach(element => {
-                element.addEventListener('click', event => {
-                    event.stopPropagation();
-                    const productId = event.target.closest('.product').dataset.productId;
-                    redirectToModel(productId);
-                });
-            });
-        });
-
-        function handleImageError(image) {
-            image.onerror = null;
-            image.src = '/static/default-image.png';
-        }
-
-        function redirectToProfile(profileUrl, token) {
-            localStorage.setItem('profile_token', token);
-            window.location.href = profileUrl;
-        }
-
-        function redirectToModel(productId) {
-            window.location.href = `/product/${productId}`;
-        }
-    </script>
 </head>
 <body>
     <header>
@@ -116,64 +61,78 @@
             <div class="header-right">
                 <input type="text" class="search-box" placeholder="Поиск...">
                 <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
-                <span id="user-info"></span>
+                <a href="/login" class="auth-button">Авторизация</a>
             </div>
         </div>
         <nav>
             <a href="/mens-shoes">Мужская обувь</a>
             <a href="/womens-shoes">Женская обувь</a>
-            <a href="/kids-shoes" class="active">Детская обувь</a>
+            <a href="/kids-shoes">Детская обувь</a>
         </nav>
     </header>
     <main>
         <section>
-            <div class="products">
-                {% for product in products %}
-                <div class="product" data-product-id="{{ product.product_id }}">
-                    <div class="product-slider">
-                        {% if product.image_side_url %}
-                        <img src="{{ product.image_side_url }}" alt="Изображение сбоку товара" onerror="handleImageError(this)">
-                        {% endif %}
-                        {% if product.image_top_url %}
-                        <img src="{{ product.image_top_url }}" alt="Изображение товара сверху" onerror="handleImageError(this)">
-                        {% endif %}
-                        {% if product.image_34_url %}
-                        <img src="{{ product.image_34_url }}" alt="Изображение товара под углом 34 градуса" onerror="handleImageError(this)">
-                        {% endif %}
-                    </div>
-                    <p class="model">{{ product.model_name }}</p>
-                    {% if product.discount_price < product.price %}
-                    <p class="price"><del>${{ product.price }}</del> <span class="discount-price">${{ product.discount_price }}</span></p>
-                    <p class="discount-text">(Скидка {{ ((product.price - product.discount_price) / product.price * 100) | round(0) }}% )</p>
-                    {% else %}
-                    <p class="price">${{ product.price }}</p>
-                    {% endif %}
+            <h2>Авторизация</h2>
+            <form id="login-form">
+                <div>
+                    <label for="email">Электронная почта:</label>
+                    <input type="text" id="email" name="email" required>
                 </div>
-                {% endfor %}
+                <div>
+                    <label for="password">Пароль:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit">Войти</button>
+            </form>
+            <p id="error-message" style="color: red; display: none;">Неверные учетные данные</p>
+            <div>
+                <a href="/forgot-password">Забыли пароль?</a>
             </div>
-            <!-- Пагинация -->
-            <div class="pagination">
-                {% if page > 1 %}
-                <a href="/kids-shoes/{{ page-1 }}" class="page-link">&laquo; Предыдущая</a>
-                {% endif %}
-                {% set start_page = (page - 2) | default(1) | int %}
-                {% set end_page = (page + 2) | default(total_pages) | int %}
-                {% if start_page < 1 %}
-                {% set start_page = 1 %}
-                {% endif %}
-                {% if end_page > total_pages %}
-                {% set end_page = total_pages %}
-                {% endif %}
-                {% for p in range(start_page, end_page + 1) %}
-                <a href="/kids-shoes/{{ p }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
-                {% endfor %}
-                {% if page < total_pages %}
-                <a href="/kids-shoes/{{ page+1 }}" class="page-link">Следующая &raquo;</a>
-                {% endif %}
+            <div>
+                <a href="/register">Регистрация</a>
             </div>
         </section>
     </main>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginForm = document.getElementById('login-form');
+            const errorMessage = document.getElementById('error-message');
+
+            loginForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                const formData = new FormData(loginForm);
+                const email = formData.get('email');
+                const password = formData.get('password');
+
+                try {
+                    const response = await fetch('/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                            email: email,
+                            password: password,
+                        }),
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const accessToken = data.access_token;
+                        localStorage.setItem('access_token', accessToken);
+                        window.location.href = '/';
+                    } else {
+                        errorMessage.style.display = 'block';
+                    }
+                } catch (error) {
+                    console.error('Ошибка входа', error);
+                    errorMessage.style.display = 'block';
+                }
+            });
+        });
+    </script>
 </body>
 </html>
+

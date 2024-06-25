@@ -1,9 +1,11 @@
+import os
+import uuid
 from email.header import Header
 from email.mime.text import MIMEText
 from typing import Tuple, List
-
+import aiofiles
 import aiosmtplib
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -291,11 +293,14 @@ async def get_seller_products(user_id: int, db: AsyncSession):
         select(Stock)
         .options(joinedload(Stock.product))
         .where(Stock.seller_id == user_id)
+        .where(Stock.quantity > 0)
     )
     products = result.scalars().all()
     product_list = []
     for product in products:
         product_data = {
+            "stock_id": product.id,
+            "product_id": product.product_id,
             "name": product.product.model_name,
             "price": product.discount_price,
             "size": product.size,
@@ -359,3 +364,17 @@ async def paginate_products(products: List, page: int, per_page: int) -> Tuple[L
     paginated_products = filtered_products[start:end]
 
     return paginated_products, total_pages
+
+
+async def save_image(file: UploadFile, folder: str) -> str:
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+    file_extension = os.path.splitext(file.filename)[1]
+    unique_filename = f"{uuid.uuid4()}{file_extension}"
+    file_path = os.path.join(folder, unique_filename)
+
+    async with aiofiles.open(file_path, 'wb') as out_file:
+        content = await file.read()
+        await out_file.write(content)
+
+    return f"/static/uploads/{unique_filename}"

@@ -43,11 +43,11 @@
                         </tr>
                     `).join('');
                     document.getElementById('products-list').innerHTML = data.products.map(product => `
-                        <tr>
+                        <tr data-stock-id="${product.stock_id}" data-product-id="${product.product_id}">
                             <td>${product.name}</td>
-                            <td>${product.price}</td>
+                            <td contenteditable="true" data-field="price">${product.price}</td>
                             <td>${product.size}</td>
-                            <td>${product.stock}</td>
+                            <td contenteditable="true" data-field="stock">${product.stock}</td>
                         </tr>
                     `).join('');
                 }
@@ -97,6 +97,39 @@
                     }
                 } catch (error) {
                     console.error('Ошибка при изменении пароля', error);
+                }
+            });
+
+            document.getElementById('save-products-button').addEventListener('click', async () => {
+                const rows = document.querySelectorAll('#products-list tr');
+                const products = Array.from(rows).map(row => {
+                    const stockId = row.getAttribute('data-stock-id');
+                    const productId = row.getAttribute('data-product-id');
+                    const price = parseFloat(row.querySelector('[data-field="price"]').textContent);
+                    const stock = parseInt(row.querySelector('[data-field="stock"]').textContent);
+
+                    return { stock_id: stockId, product_id: productId, price, stock };
+                });
+
+                try {
+                    const response = await fetch('/update-products', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ products })
+                    });
+                    if (response.ok) {
+                        alert('Товары успешно обновлены');
+                    } else {
+                        const errorData = await response.json();
+                        console.error('Ошибка при обновлении товаров', errorData);
+                        alert('Ошибка при обновлении товаров: ' + errorData.detail);
+                    }
+                } catch (error) {
+                    console.error('Ошибка при обновлении товаров', error);
+                    alert('Ошибка при обновлении товаров');
                 }
             });
 
@@ -266,6 +299,7 @@
                         <!-- Список товаров -->
                     </tbody>
                 </table>
+                <button id="save-products-button">Сохранить</button>
             </div>
         </div>
     </main>

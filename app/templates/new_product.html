@@ -89,6 +89,14 @@
         .remove-size-button:after {
             content: ' -';
         }
+        .create-product-container {
+            display: flex;
+            align-items: center;
+            margin-top: 10px;
+        }
+        .create-product-button {
+            margin-left: 10px;
+        }
     </style>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -96,6 +104,8 @@
             const modelList = {{ products|tojson }};
             const suggestions = document.getElementById('suggestions');
             const sizeFieldsContainer = document.getElementById('size-fields-container');
+            const createProductContainer = document.getElementById('create-product-container');
+            const createProductMessage = document.getElementById('create-product-message');
             const createProductButton = document.getElementById('create-product-button');
             const imagePreview = document.getElementById('image-preview');
             const colorSelect = document.getElementById('color-select');
@@ -116,7 +126,11 @@
                         matchFound = true;
                     }
                 });
-                createProductButton.style.display = matchFound ? 'none' : 'block';
+                if (matchFound) {
+                    createProductContainer.style.display = 'none';
+                } else {
+                    createProductContainer.style.display = 'flex';
+                }
             });
 
             modelNameInput.addEventListener('change', () => {
@@ -314,6 +328,10 @@
                         <input type="text" id="model-name" name="model_name" list="suggestions" required>
                         <datalist id="suggestions"></datalist>
                     </div>
+                    <div id="create-product-container" class="create-product-container" style="display:none;">
+                        <span id="create-product-message">Не удалось найти товар с таким названием</span>
+                        <button id="create-product-button" class="create-product-button" onclick="window.location.href='/create_product'">Создать новый товар</button>
+                    </div>
                     <div class="form-group">
                         <label for="color-select">Расцветка:</label>
                         <select id="color-select" name="color" required></select>
@@ -332,7 +350,6 @@
                     <p id="recommended-price">Рекомендованная цена:</p>
                     <button type="submit" class="submit-button">Разместить товар</button>
                 </form>
-                <button id="create-product-button" style="display:none;" onclick="window.location.href='/create_product'">Создать новый товар</button>
             </div>
             <div class="image-container">
                 <img id="image-preview" src="" alt="Product Image">

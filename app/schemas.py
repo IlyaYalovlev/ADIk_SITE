@@ -1,6 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, List
 from decimal import Decimal
 from pydantic_settings import BaseSettings
 
@@ -109,3 +109,11 @@ class UserDetails(BaseModel):
     last_name: str
     user_type: str
 
+class StockUpdate(BaseModel):
+    stock_id: int
+    product_id: str
+    price: float
+    stock: int
+
+class StockUpdateRequest(BaseModel):
+    products: List[StockUpdate]

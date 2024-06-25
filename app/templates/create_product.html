@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Создание нового товара - ADIK STORE</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .form-container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            width: 100%;
+            padding: 20px;
+            gap: 35px;
+        }
+        .form-content {
+            width: 55%;
+        }
+        .image-container {
+            width: 35%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input,
+        .form-group select {
+            width: calc(100% - 20px);
+            padding: 8px;
+            box-sizing: border-box;
+            display: inline-block;
+        }
+        .submit-button {
+            width: 100%;
+            padding: 15px;
+            background-color: green;
+            color: white;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <h1><a href="/">ADIK STORE</a></h1>
+            <div class="header-right">
+                <input type="text" class="search-box" placeholder="Поиск...">
+                <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
+                <span id="user-info"></span>
+            </div>
+        </div>
+        <nav>
+            <a href="/mens-shoes">Мужская обувь</a>
+            <a href="/womens-shoes">Женская обувь</a>
+            <a href="/kids-shoes">Детская обувь</a>
+        </nav>
+    </header>
+    <main>
+        <h2>Создание нового товара</h2>
+        <div class="form-container">
+            <div class="form-content">
+                <form id="create-product-form" action="/create_product" method="post" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="collection">Коллекция:</label>
+                        <select id="collection" name="collection" required>
+                            <option value="Originals">Originals</option>
+                            <option value="Sportswear">Sportswear</option>
+                            <option value="TERREX">TERREX</option>
+                            <option value="adidas by Stella McCartney">adidas by Stella McCartney</option>
+                            <option value="Y-3">Y-3</option>
+                            <option value="Essentials">Essentials</option>
+                            <option value="Five Ten">Five Ten</option>
+                            <option value="Performance">Performance</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="model-name">Название модели:</label>
+                        <input type="text" id="model-name" name="model_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="recommended-price">Рекомендованная цена:</label>
+                        <input type="number" id="recommended-price" name="recommended_price" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="gender">Пол:</label>
+                        <select id="gender" name="gender" required>
+                            <option value="Мужские">Мужские</option>
+                            <option value="Женские">Женские</option>
+                            <option value="Унисекс">Унисекс</option>
+                            <option value="Детские">Детские</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="side-view">Фото сбоку:</label>
+                        <input type="file" id="side-view" name="side_view" accept="image/*" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="top-view">Фото сверху:</label>
+                        <input type="file" id="top-view" name="top_view" accept="image/*" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="three-quarter-view">Фото в 3/4:</label>
+                        <input type="file" id="three-quarter-view" name="three_quarter_view" accept="image/*" required>
+                    </div>
+                    <button type="submit" class="submit-button">Создать товар</button>
+                </form>
+            </div>
+        </div>
+    </main>
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const userInfo = document.getElementById('user-info');
+            const form = document.getElementById('create-product-form');
+
+            function updateUserInfo() {
+                const token = localStorage.getItem('access_token');
+                if (token) {
+                    fetch('/user-info', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.id) {
+                            const fullName = `${data.first_name} ${data.last_name}`;
+                            let profileUrl = `/profile_seller/${data.id}`;
+                            if (data.user_type === 'customer') {
+                                profileUrl = `/profile_customer/${data.id}`;
+                            }
+                            localStorage.setItem('access_token', data.access_token);
+                            userInfo.innerHTML = `<a href="#" onclick="redirectToProfile('${profileUrl}', '${data.access_token}')" class="auth-button">${fullName}</a>`;
+                        } else {
+                            userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Не удалось получить информацию о пользователе', error);
+                        userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                    });
+                } else {
+                    userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                }
+            }
+
+            function redirectToProfile(profileUrl, token) {
+                localStorage.setItem('profile_token', token);
+                window.location.href = profileUrl;
+            }
+
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const token = localStorage.getItem('access_token');
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                const formData = new FormData(form);
+                try {
+                    const response = await fetch('/create_product', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+
+                    const data = await response.text();
+                    document.open();
+                    document.write(data);
+                    document.close();
+                } catch (error) {
+                    console.error('Ошибка:', error);
+                }
+            });
+
+            updateUserInfo();
+        });
+    </script>
+</body>
+</html>
