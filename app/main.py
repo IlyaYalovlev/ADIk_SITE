@@ -14,6 +14,8 @@ from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+
+from config import SECRET
 from . import schemas, crud
 from .auth import create_access_token, get_current_user_id, generate_confirmation_token, confirm_token
 from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
@@ -41,7 +43,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 # Конфигурация для fastapi-login
-SECRET_KEY = "your-secret-key"
+SECRET_KEY = SECRET
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

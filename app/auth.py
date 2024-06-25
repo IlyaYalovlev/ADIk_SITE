@@ -10,12 +10,12 @@ from datetime import datetime, timedelta
 import jwt
 from itsdangerous import URLSafeTimedSerializer
 from app.models import Users
+from config import SECRET
 
-SECRET = "your-secret-key"
 
 
 # Конфигурация для JWT
-SECRET_KEY = "your-secret-key"
+SECRET_KEY = SECRET
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 serializer = URLSafeTimedSerializer(SECRET_KEY)
