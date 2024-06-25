@@ -1,6 +1,6 @@
 import os
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, List
 from fastapi import HTTPException, status
 from jwt.exceptions import ExpiredSignatureError
 from fastapi import Header
@@ -17,7 +17,7 @@ from . import schemas, crud
 from .auth import create_access_token, get_current_user_id, generate_confirmation_token, confirm_token
 from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
     get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products, \
-    get_products, create_stock_item
+    get_products, create_stock_item, paginate_products
 from .database import get_db
 from .models import Users, Product, Stock
 from .schemas import UserDetails, User, StockCreate
@@ -137,7 +137,6 @@ async def profile_seller(user_id: int, request: Request):
 
 @app.get("/api/profile_seller/{user_id}", response_class=JSONResponse)
 async def api_profile_seller(user_id: int, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
-    print(authorization, '111111111111111111111111111111111111')
     if not authorization or not authorization.startswith("Bearer "):
         return JSONResponse(status_code=401, content={"detail": "Missing or invalid Authorization header"})
 
@@ -223,10 +222,10 @@ async def api_profile_customer(user_id: int, db: AsyncSession = Depends(get_db),
 async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
     per_page = 28 # количество товаров на одной странице
     products, total = await get_mens_shoes(db, page, per_page)
-    total_pages = (total + per_page - 1) // per_page # вычисляем общее количество страниц
+    paginated_products, total_pages = await paginate_products(products, page, per_page)
     return templates.TemplateResponse("mens_shoes.html", {
         "request": request,
-        "products": products,
+        "products": paginated_products,
         "page": page,
         "total_pages": total_pages
     })
@@ -237,10 +236,10 @@ async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends
 async def womens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
     per_page = 28 # количество товаров на одной странице
     products, total = await get_womens_shoes(db, page, per_page)
-    total_pages = (total + per_page - 1) // per_page # вычисляем общее количество страниц
+    paginated_products, total_pages = paginate_products(products, page, per_page)
     return templates.TemplateResponse("womens_shoes.html", {
         "request": request,
-        "products": products,
+        "products": paginated_products,
         "page": page,
         "total_pages": total_pages
     })
@@ -251,10 +250,10 @@ async def womens_shoes(request: Request, page: int = 1, db: AsyncSession = Depen
 async def kids_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
     per_page = 28 # количество товаров на одной странице
     products, total = await get_kids_shoes(db, page, per_page)
-    total_pages = (total + per_page - 1) // per_page # вычисляем общее количество страниц
+    paginated_products, total_pages = paginate_products(products, page, per_page)
     return templates.TemplateResponse("kids_shoes.html", {
         "request": request,
-        "products": products,
+        "products": paginated_products,
         "page": page,
         "total_pages": total_pages
     })
@@ -477,37 +476,26 @@ async def product_page(request: Request, product_id: str, db: AsyncSession = Dep
 
 
 
-
 @app.get("/new-product", response_class=HTMLResponse)
-async def new_product_form(request: Request, db: AsyncSession = Depends(get_db),
-                           authorization: Optional[str] = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        return RedirectResponse(url="/login", status_code=307)
-
-    token = authorization.split(" ")[1]
-
-    try:
-        payload = jwt_decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = int(payload.get("sub"))
-        user = await get_user_by_id(db, user_id)
-        if not user or user.user_type != "seller":
-            return RedirectResponse(url="/login", status_code=307)
-    except ExpiredSignatureError:
-        return RedirectResponse(url="/login", status_code=307)
-    except Exception as e:
-        print(e, 'error')
-        return RedirectResponse(url="/login", status_code=307)
-
+async def new_product_form(request: Request, db: AsyncSession = Depends(get_db)):
     products = await get_products(db)
-    product_list = [{"model_name": product.model_name} for product in products]
+    product_list = [{"model_name": product.model_name, "image_side_url": product.image_side_url, "product_id": product.product_id, "price":product.price} for product in products]
     return templates.TemplateResponse("new_product.html", {"request": request, "products": product_list})
 
 
+
+
 @app.post("/new-product", response_class=HTMLResponse)
-async def add_new_product(request: Request, db: AsyncSession = Depends(get_db),
-                          model_name: str = Form(...), sizes: str = Form(...),
-                          quantities: str = Form(...), price: float = Form(...),
-                          authorization: Optional[str] = Header(None)):
+async def add_new_product(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    model_name: str = Form(...),
+    product_id: str = Form(...),
+    sizes: List[str] = Form(...),
+    quantities: List[str] = Form(...),
+    price: float = Form(...),
+    authorization: Optional[str] = Header(None)
+):
     if not authorization or not authorization.startswith("Bearer "):
         return RedirectResponse(url="/login", status_code=307)
 
@@ -523,29 +511,26 @@ async def add_new_product(request: Request, db: AsyncSession = Depends(get_db),
     except Exception:
         return RedirectResponse(url="/login", status_code=307)
 
-    product = await db.execute(select(Product).where(Product.model_name == model_name))
+    product = await db.execute(select(Product).where(Product.product_id == product_id))
     product = product.scalars().first()
     if not product:
-        return RedirectResponse(url="/add-product", status_code=307)
+        return RedirectResponse(url="/create_product", status_code=307)
 
-    size_list = sizes.split(',')
-    quantity_list = quantities.split(',')
-    if len(size_list) != len(quantity_list):
+    if len(sizes) != len(quantities):
         return RedirectResponse(url="/new-product", status_code=400)
 
-    for size, quantity in zip(size_list, quantity_list):
+    for size, quantity in zip(sizes, quantities):
         new_stock = Stock(
             product_id=product.product_id,
             seller_id=user_id,
             size=float(size),
             quantity=int(quantity),
-            price=price,
+            price=product.price,  # Use the product price
             discount_price=price  # Initially no discount
         )
         db.add(new_stock)
     await db.commit()
 
     products = await get_products(db)
-    product_list = [{"model_name": product.model_name} for product in products]  # Преобразование в список словарей
-    return templates.TemplateResponse("new_product.html", {"request": request, "products": product_list,
-                                                           "message": "Product added successfully!"})
+    product_list = [{"model_name": product.model_name} for product in products]
+    return templates.TemplateResponse("new_product.html", {"request": request, "products": product_list, "message": "Product added successfully!"})

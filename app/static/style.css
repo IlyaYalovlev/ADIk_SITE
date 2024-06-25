@@ -1,4 +1,3 @@
-/* Основные стили для тела страницы */
 body {
     font-family: Arial, sans-serif;
     margin: 0;
@@ -10,7 +9,6 @@ body {
     background: #f0f0f0;
 }
 
-/* Стили для заголовка */
 header {
     background-color: #333;
     color: white;
@@ -21,7 +19,6 @@ header {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* Контейнер для элементов заголовка */
 .header-container {
     display: flex;
     justify-content: space-between;
@@ -31,20 +28,17 @@ header {
     margin: 0 auto;
 }
 
-/* Контейнер для элементов справа в заголовке */
 .header-right {
     display: flex;
     align-items: center;
     gap: 15px;
 }
 
-/* Стили для логотипа */
 header h1 a {
     color: white;
     text-decoration: none;
 }
 
-/* Стили для навигации */
 nav {
     display: flex;
     justify-content: center;
@@ -52,21 +46,18 @@ nav {
     margin-top: 10px;
 }
 
-/* Стили для ссылок навигации */
 nav a {
     color: white;
     text-decoration: none;
     padding: 5px 10px;
 }
 
-/* Стили для ссылок навигации при наведении */
 nav a:hover {
     background-color: #555;
     color: white;
     border-radius: 5px;
 }
 
-/* Стили для строки поиска */
 .search-box {
     padding: 8px;
     border: 1px solid #ccc;
@@ -74,7 +65,6 @@ nav a:hover {
     width: 200px;
 }
 
-/* Стили для кнопки корзины */
 .cart-button {
     border: 2px solid #ff9800;
     color: #ff9800;
@@ -88,13 +78,11 @@ nav a:hover {
     gap: 5px;
 }
 
-/* Стили для кнопки корзины при наведении */
 .cart-button:hover {
     background-color: #ff9800;
     color: white;
 }
 
-/* Стили для кнопки авторизации */
 .auth-button {
     border: 2px solid #007bff;
     color: #007bff;
@@ -103,16 +91,14 @@ nav a:hover {
     text-decoration: none;
     font-weight: bold;
     cursor: pointer;
-    display: inline-block; /* Делаем кнопку блочным элементом */
+    display: inline-block;
 }
 
-/* Стили для кнопки авторизации при наведении */
 .auth-button:hover {
     background-color: #007bff;
     color: white;
 }
 
-/* Стили для основного контента */
 main {
     display: flex;
     flex-direction: column;
@@ -121,7 +107,6 @@ main {
     padding: 20px;
 }
 
-/* Стили для секции формы авторизации */
 section {
     background: #fff;
     padding: 20px;
@@ -129,10 +114,9 @@ section {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     text-align: center;
     width: 100%;
-    max-width: none; /* Убрано ограничение максимальной ширины */
+    max-width: none;
 }
 
-/* Стили для контейнера продуктов */
 .products {
     display: flex;
     flex-wrap: wrap;
@@ -140,7 +124,6 @@ section {
     justify-content: center;
 }
 
-/* Стили для каждого продукта */
 .product {
     border: 1px solid #ccc;
     padding: 10px;
@@ -149,28 +132,23 @@ section {
     position: relative;
 }
 
-/* Стили для изображений продуктов */
 .product img {
     max-width: 100%;
 }
 
-/* Стили для зачеркнутой цены */
 .price del {
     color: gray;
 }
 
-/* Стили для цены со скидкой */
 .discount-price {
     color: red;
     font-size: 1.2em;
 }
 
-/* Стили для текста скидки */
 .discount {
     color: green;
 }
 
-/* Стили для кнопки добавления в корзину у каждого продукта */
 .add-to-cart-button {
     position: absolute;
     right: 10px;
@@ -183,24 +161,20 @@ section {
     cursor: pointer;
 }
 
-/* Стили для иконки внутри кнопки добавления в корзину */
 .add-to-cart-button i {
     font-size: 16px;
 }
 
-/* Стили для кнопки добавления в корзину при наведении */
 .add-to-cart-button:hover {
     background-color: #0056b3;
 }
 
-/* Стили для пагинации */
 .pagination {
     display: flex;
     justify-content: center;
     margin-top: 20px;
 }
 
-/* Стили для ссылки пагинации */
 .page-link {
     margin: 0 5px;
     padding: 5px 10px;
@@ -210,32 +184,27 @@ section {
     border-radius: 5px;
 }
 
-/* Стили для активной страницы */
 .page-link.active {
     background-color: #007bff;
     color: white;
     border-color: #007bff;
 }
 
-/* Стили для ссылки пагинации при наведении */
 .page-link:hover {
     background-color: #0056b3;
     color: white;
     border-color: #0056b3;
 }
 
-/* Стили для активной кнопки "Мужская обувь" */
 nav a.active {
     font-weight: bold;
     text-decoration: underline;
 }
 
-/* Стили для текста скидки */
 .discount-text {
     color: green;
 }
 
-/* Стили для стрелок слайдера */
 .slick-prev, .slick-next {
     background-color: gray !important;
     border-radius: 50%;
@@ -259,186 +228,168 @@ nav a.active {
     transition: opacity 0.3s ease;
 }
 
-/* Кнопка выхода */
 #logout-button {
-    position: fixed; /* Позиция в правом нижнем углу */
+    position: fixed;
     bottom: 10px;
     right: 10px;
-    background-color: red; /* Цвет фона */
-    color: white; /* Цвет текста */
-    border: none; /* Без границы */
-    padding: 10px 20px; /* Отступы для размера */
-    cursor: pointer; /* Курсор-указатель */
+    background-color: red;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
 }
 
-/* Стиль содержимого вкладок */
 .tab-content {
-    display: none; /* Скрывать по умолчанию */
+    display: none;
 }
 .tab-content.active {
-    display: block; /* Показывать, когда активно */
+    display: block;
 }
 
-/* Стиль кнопок вкладок */
 .tab-button.active {
-    font-weight: bold; /* Жирный текст, когда активно */
+    font-weight: bold;
 }
 
-/* Стиль информации профиля */
 .profile-info {
     display: flex;
-    flex-direction: column; /* Вертикальное выравнивание */
-    max-width: 700px; /* Максимальная ширина для информации профиля */
-    margin-bottom: 20px; /* Отступ снизу */
+    flex-direction: column;
+    max-width: 700px;
+    margin-bottom: 20px;
 }
 .profile-info div {
     display: flex;
-    justify-content: space-between; /* Расстояние между меткой и содержимым */
-    margin-bottom: 10px; /* Отступ снизу для каждого элемента */
+    justify-content: space-between;
+    margin-bottom: 10px;
 }
 .profile-info label {
-    min-width: 150px; /* Минимальная ширина для меток */
+    min-width: 150px;
 }
 
-/* Стиль группы формы */
 .form-group {
     display: flex;
-    justify-content: space-between; /* Расстояние между меткой и вводом */
-    margin-bottom: 10px; /* Отступ снизу */
+    justify-content: space-between;
+    margin-bottom: 10px;
 }
 .form-group label {
-    min-width: 150px; /* Минимальная ширина для меток */
+    min-width: 150px;
 }
 .form-group input {
     flex: 1;
-    max-width: 300px; /* Максимальная ширина для ввода */
+    max-width: 300px;
 }
 
-/* Стиль формы */
 form {
-    max-width: 700px; /* Максимальная ширина для формы */
+    max-width: 700px;
 }
 
-/* Стиль контейнера заголовка */
 .header-container {
     display: flex;
-    justify-content: space-between; /* Расстояние между элементами */
-    align-items: center; /* Центрирование элементов вертикально */
+    justify-content: space-between;
+    align-items: center;
     padding: 10px;
 }
 
-/* Стиль навигационной панели */
 nav {
     display: flex;
-    justify-content: center; /* Центрирование навигационных ссылок */
-    background-color: #333; /* Цвет фона */
+    justify-content: center;
+    background-color: #333;
     padding: 10px 0;
 }
 nav a {
-    color: white; /* Цвет текста ссылок */
-    margin: 0 10px; /* Отступы между ссылками */
-    text-decoration: none; /* Удалить подчеркивание */
-    padding: 10px 20px; /* Отступы для размера */
+    color: white;
+    margin: 0 10px;
+    text-decoration: none;
+    padding: 10px 20px;
 }
 nav a.active, nav a:hover {
-    background-color: #555; /* Цвет фона при наведении/активности */
+    background-color: #555;
 }
 
-/* Стили для контейнера таблицы продаж */
 .sales-table-container {
-    max-width: 1000px; /* Максимальная ширина для таблицы продаж */
-    width: 100%; /* Заполнить доступное пространство */
-    overflow-x: auto; /* Добавить горизонтальную прокрутку при необходимости */
+    max-width: 1000px;
+    width: 100%;
+    overflow-x: auto;
 }
 
-
-/* Стили для контейнера таблицы продаж */
 .sales-table-container {
-    max-width: 800px; /* Установим ширину контейнера */
-    width: 100%; /* Заполнить доступное пространство */
-    overflow-x: auto; /* Добавить горизонтальную прокрутку при необходимости */
-    padding: 20px; /* Добавить отступы вокруг контейнера */
-    background: #fff; /* Фон контейнера */
-    border-radius: 10px; /* Радиус границ контейнера */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Тень контейнера */
-    margin: 20px auto; /* Центрирование контейнера и отступы сверху и снизу */
+    max-width: 800px;
+    width: 100%;
+    overflow-x: auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    margin: 20px auto;
 }
 
-/* Стили для таблицы продаж */
 .sales-table {
     width: 100%;
-    border-collapse: collapse; /* Убрать промежутки между ячейками */
-    margin-bottom: 20px; /* Отступ снизу */
+    border-collapse: collapse;
+    margin-bottom: 20px;
 }
 
-/* Стили для заголовков таблицы */
 .sales-table th {
     background-color: #333;
     color: white;
-    padding: 10px; /* Отступы внутри ячеек заголовков */
+    padding: 10px;
     text-align: left;
 }
 
-/* Стили для ячеек таблицы */
 .sales-table td {
     background-color: #fff;
     color: #333;
-    padding: 10px; /* Отступы внутри ячеек */
-    border-bottom: 1px solid #ccc; /* Нижняя граница ячеек */
+    padding: 10px;
+    border-bottom: 1px solid #ccc;
 }
 
-/* Стили для строк таблицы при наведении */
 .sales-table tr:hover {
     background-color: #f0f0f0;
 }
 
-/* Стили для общего контейнера информации */
 .profile-info {
-    max-width: 800px; /* Установим ширину контейнера */
-    margin: 20px auto; /* Центрирование контейнера и отступы сверху и снизу */
-    padding: 20px; /* Добавить отступы вокруг контейнера */
-    background: #fff; /* Фон контейнера */
-    border-radius: 10px; /* Радиус границ контейнера */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Тень контейнера */
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-
-/* Стили для контейнера таблицы продуктов */
 .products-table-container {
-    max-width: 800px; /* Установим ширину контейнера */
-    width: 100%; /* Заполнить доступное пространство */
-    overflow-x: auto; /* Добавить горизонтальную прокрутку при необходимости */
-    padding: 20px; /* Добавить отступы вокруг контейнера */
-    background: #fff; /* Фон контейнера */
-    border-radius: 10px; /* Радиус границ контейнера */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Тень контейнера */
-    margin: 20px auto; /* Центрирование контейнера и отступы сверху и снизу */
+    max-width: 800px;
+    width: 100%;
+    overflow-x: auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    margin: 20px auto;
 }
 
-/* Стили для таблицы продуктов */
 .products-table {
     width: 100%;
-    border-collapse: collapse; /* Убрать промежутки между ячейками */
-    margin-bottom: 20px; /* Отступ снизу */
+    border-collapse: collapse;
+    margin-bottom: 20px;
 }
 
-/* Стили для заголовков таблицы */
 .products-table th {
     background-color: #333;
     color: white;
-    padding: 10px; /* Отступы внутри ячеек заголовков */
+    padding: 10px;
     text-align: left;
 }
 
-/* Стили для ячеек таблицы */
 .products-table td {
     background-color: #fff;
     color: #333;
-    padding: 10px; /* Отступы внутри ячеек */
-    border-bottom: 1px solid #ccc; /* Нижняя граница ячеек */
+    padding: 10px;
+    border-bottom: 1px solid #ccc;
 }
 
-/* Стили для строк таблицы при наведении */
 .products-table tr:hover {
     background-color: #f0f0f0;
+}
+
+.size-input, .quantity-input {
+    width: calc(50% - 5px); /* Уменьшено для ровного отображения */
 }

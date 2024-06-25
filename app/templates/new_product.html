@@ -4,58 +4,207 @@
     <meta charset="UTF-8">
     <title>Добавление нового товара - ADIK STORE</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .form-container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            width: 100%;
+            padding: 20px;
+            gap: 35px;
+        }
+        .form-content {
+            width: 55%;
+        }
+        .image-container {
+            width: 35%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #image-preview {
+            display: none;
+            border: 1px solid #ddd;
+            background-color: #fff;
+            width: 100%;
+            height: auto;
+            max-width: 300px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input,
+        .form-group select {
+            width: calc(100% - 20px);
+            padding: 8px;
+            box-sizing: border-box;
+            display: inline-block;
+        }
+        .inline-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .inline-group > div {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .inline-group > div input {
+            flex: 1;
+        }
+        .add-size-button {
+            display: inline-block;
+            color: blue;
+            border: none;
+            background: none;
+            cursor: pointer;
+            padding: 0;
+            text-align: left;
+        }
+        .remove-size-button {
+            display: inline-block;
+            margin-left: 10px;
+            color: red;
+            border: none;
+            background: none;
+            cursor: pointer;
+        }
+        .submit-button {
+            width: 100%;
+            padding: 15px;
+            background-color: green;
+            color: white;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+        }
+        .add-size-button:after {
+            content: ' +';
+        }
+        .remove-size-button:after {
+            content: ' -';
+        }
+    </style>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const userInfo = document.getElementById('user-info');
-            const token = localStorage.getItem('profile_token');
-
-            if (!token) {
-                window.location.href = '/';
-                return;
-            }
-
-            fetch('/user-info', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.id) {
-                    const fullName = `${data.first_name} ${data.last_name}`;
-                    let profileUrl = `/profile_seller/${data.id}`;
-                    if (data.user_type === 'customer') {
-                        profileUrl = `/profile_customer/${data.id}`;
-                    }
-                    localStorage.setItem('access_token', data.access_token);
-                    userInfo.innerHTML = `<a href="#" onclick="redirectToProfile('${profileUrl}', '${data.access_token}')" class="auth-button">${fullName}</a>`;
-                } else {
-                    userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
-                }
-            })
-            .catch(error => {
-                console.error('Не удалось получить информацию о пользователе', error);
-                userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
-            });
-
             const modelNameInput = document.getElementById('model-name');
             const modelList = {{ products|tojson }};
             const suggestions = document.getElementById('suggestions');
             const sizeFieldsContainer = document.getElementById('size-fields-container');
+            const createProductButton = document.getElementById('create-product-button');
+            const imagePreview = document.getElementById('image-preview');
+            const colorSelect = document.getElementById('color-select');
+            const recommendedPrice = document.getElementById('recommended-price');
+            const productIdInput = document.getElementById('product-id');
+
+            const uniqueModelNames = Array.from(new Set(modelList.map(model => model.model_name)));
 
             modelNameInput.addEventListener('input', () => {
                 const value = modelNameInput.value.toLowerCase();
                 suggestions.innerHTML = '';
-                modelList.forEach(model => {
-                    if (model.model_name.toLowerCase().includes(value)) {
+                let matchFound = false;
+                uniqueModelNames.forEach(modelName => {
+                    if (modelName.toLowerCase().includes(value)) {
                         const option = document.createElement('option');
-                        option.value = model.model_name;
+                        option.value = modelName;
                         suggestions.appendChild(option);
+                        matchFound = true;
                     }
                 });
+                createProductButton.style.display = matchFound ? 'none' : 'block';
+            });
+
+            modelNameInput.addEventListener('change', () => {
+                const selectedModelName = modelNameInput.value;
+                const filteredProducts = modelList.filter(model => model.model_name === selectedModelName);
+
+                colorSelect.innerHTML = '';
+                colorSelect.style.display = 'block';
+                const emptyOption = document.createElement('option');
+                emptyOption.value = '';
+                emptyOption.text = 'Выберите цвет';
+                colorSelect.appendChild(emptyOption);
+
+                if (filteredProducts.length > 0) {
+                    const product = filteredProducts[0];
+                    recommendedPrice.textContent = `Рекомендованная цена: $${product.price}`;
+                    filteredProducts.forEach(product => {
+                        const option = document.createElement('option');
+                        option.value = product.product_id;
+                        option.text = product.product_id;  // Используем product_id вместо цвета
+                        option.dataset.image = product.image_side_url;
+                        option.dataset.price = product.price;
+                        colorSelect.appendChild(option);
+                    });
+                } else {
+                    recommendedPrice.textContent = '';
+                }
+
+                imagePreview.style.display = 'none';
+            });
+
+            colorSelect.addEventListener('change', () => {
+                const selectedOption = colorSelect.options[colorSelect.selectedIndex];
+                if (selectedOption.dataset.image) {
+                    imagePreview.src = selectedOption.dataset.image;
+                    imagePreview.style.display = 'block';
+                } else {
+                    imagePreview.style.display = 'none';
+                }
+                if (selectedOption.dataset.price) {
+                    recommendedPrice.textContent = `Рекомендованная цена: $${selectedOption.dataset.price}`;
+                } else {
+                    recommendedPrice.textContent = '';
+                }
             });
 
             document.getElementById('add-size-button').addEventListener('click', () => {
+                addSizeField(sizeFieldsContainer);
+            });
+
+            sizeFieldsContainer.addEventListener('click', (event) => {
+                if (event.target.classList.contains('remove-size-button')) {
+                    event.target.parentElement.remove();
+                }
+            });
+
+            document.getElementById('product-form').addEventListener('submit', (event) => {
+                event.preventDefault();
+                const token = localStorage.getItem('profile_token');
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                const formData = new FormData(event.target);
+                formData.append('product_id', colorSelect.value);
+                fetch('/new-product', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                })
+                .then(response => response.text())
+                .then(data => {
+                    document.open();
+                    document.write(data);
+                    document.close();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            });
+
+            function addSizeField(container) {
+                const sizeGroup = document.createElement('div');
+                sizeGroup.classList.add('form-group');
+
                 const sizeField = document.createElement('input');
                 sizeField.type = 'number';
                 sizeField.name = 'sizes';
@@ -63,16 +212,27 @@
                 sizeField.min = '6';
                 sizeField.max = '14';
                 sizeField.required = true;
+                sizeField.placeholder = 'Размер';
+                sizeField.classList.add('size-input');
+                sizeGroup.appendChild(sizeField);
 
                 const quantityField = document.createElement('input');
                 quantityField.type = 'number';
                 quantityField.name = 'quantities';
                 quantityField.min = '1';
                 quantityField.required = true;
+                quantityField.placeholder = 'Количество';
+                quantityField.classList.add('quantity-input');
+                sizeGroup.appendChild(quantityField);
 
-                sizeFieldsContainer.appendChild(sizeField);
-                sizeFieldsContainer.appendChild(quantityField);
-            });
+                const removeButton = document.createElement('button');
+                removeButton.type = 'button';
+                removeButton.classList.add('remove-size-button');
+                removeButton.textContent = 'Удалить размер';
+                sizeGroup.appendChild(removeButton);
+
+                container.appendChild(sizeGroup);
+            }
         });
 
         function handleImageError(image) {
@@ -84,6 +244,45 @@
             localStorage.setItem('profile_token', token);
             window.location.href = profileUrl;
         }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const userInfo = document.getElementById('user-info');
+
+            function updateUserInfo() {
+                const token = localStorage.getItem('access_token');
+
+                if (token) {
+                    fetch('/user-info', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.id) {
+                            const fullName = `${data.first_name} ${data.last_name}`;
+                            let profileUrl = `/profile_seller/${data.id}`;
+                            if (data.user_type === 'customer') {
+                                profileUrl = `/profile_customer/${data.id}`;
+                            }
+                            localStorage.setItem('access_token', data.access_token);
+                            userInfo.innerHTML = `<a href="#" onclick="redirectToProfile('${profileUrl}', '${data.access_token}')" class="auth-button">${fullName}</a>`;
+                        } else {
+                            userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Не удалось получить информацию о пользователе', error);
+                        userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                    });
+                } else {
+                    userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                }
+            }
+
+            updateUserInfo();
+        });
     </script>
 </head>
 <body>
@@ -98,7 +297,7 @@
         </div>
         <nav>
             <a href="/mens-shoes">Мужская обувь</a>
-            <a href="/womens-shoes">Женская обувь</a>
+            <a href="/womens-shoes">Женская обувь</а>
             <a href="/kids-shoes">Детская обувь</a>
         </nav>
     </header>
@@ -107,21 +306,38 @@
         {% if message %}
         <p>{{ message }}</p>
         {% endif %}
-        <form action="/new-product" method="post">
-            <label for="model-name">Название товара:</label>
-            <input type="text" id="model-name" name="model_name" list="suggestions" required>
-            <datalist id="suggestions"></datalist>
-            <div id="size-fields-container">
-                <label for="sizes">Размер:</label>
-                <input type="number" name="sizes" step="0.5" min="6" max="14" required>
-                <label for="quantities">Количество:</label>
-                <input type="number" name="quantities" min="1" required>
+        <div class="form-container">
+            <div class="form-content">
+                <form id="product-form" action="/new-product" method="post">
+                    <div class="form-group">
+                        <label for="model-name">Название товара:</label>
+                        <input type="text" id="model-name" name="model_name" list="suggestions" required>
+                        <datalist id="suggestions"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label for="color-select">Расцветка:</label>
+                        <select id="color-select" name="color" required></select>
+                    </div>
+                    <div id="size-fields-container" class="form-group inline-group">
+                        <div>
+                            <input type="number" name="sizes" step="0.5" min="6" max="14" required placeholder="Размер" class="size-input">
+                            <input type="number" name="quantities" min="1" required placeholder="Количество" class="quantity-input">
+                        </div>
+                    </div>
+                    <button type="button" id="add-size-button" class="add-size-button">Добавить размер</button>
+                    <div class="form-group">
+                        <label for="price">Цена продавца:</label>
+                        <input type="number" name="price" step="0.01" required>
+                    </div>
+                    <p id="recommended-price">Рекомендованная цена:</p>
+                    <button type="submit" class="submit-button">Разместить товар</button>
+                </form>
+                <button id="create-product-button" style="display:none;" onclick="window.location.href='/create_product'">Создать новый товар</button>
             </div>
-            <button type="button" id="add-size-button">Добавить еще размер</button>
-            <label for="price">Цена продавца:</label>
-            <input type="number" name="price" step="0.01" required>
-            <button type="submit">Разместить товар</button>
-        </form>
+            <div class="image-container">
+                <img id="image-preview" src="" alt="Product Image">
+            </div>
+        </div>
     </main>
 </body>
 </html>

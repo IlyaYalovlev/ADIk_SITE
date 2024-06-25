@@ -1,5 +1,6 @@
 from email.header import Header
 from email.mime.text import MIMEText
+from typing import Tuple, List
 
 import aiosmtplib
 from fastapi import HTTPException
@@ -112,7 +113,7 @@ async def get_popular_products(db: AsyncSession):
         select(models.Stock)
         .options(selectinload(models.Stock.product), selectinload(models.Stock.seller))
         .order_by(models.Stock.quantity.desc())
-        .limit(28)
+        .limit(50)
     )
     stocks = result.scalars().all()
     products = []
@@ -128,7 +129,14 @@ async def get_popular_products(db: AsyncSession):
             "discount": round((1 - stock.discount_price / stock.price) * 100, 2) if stock.price else 0,
         }
         products.append(product_data)
-    return products
+    filtered_products = []
+    seen_models = set()
+    for product in products:
+        if product['model_name'] not in seen_models:
+            filtered_products.append(product)
+            seen_models.add(product['model_name'])
+    paginated_products = filtered_products[:28]
+    return paginated_products
 
 async def get_mens_shoes(db: AsyncSession, page: int, per_page: int):
     offset = (page - 1) * per_page
@@ -322,5 +330,32 @@ async def send_email(email: str, msg_text: str):
         print(f"Failed to send email: {e}")
 
 
+async def paginate_products(products: List, page: int, per_page: int) -> Tuple[List, int]:
+    """
+    Фильтрует товары, оставляя по одному товару с уникальными model_name,
+    и выполняет пагинацию.
 
+    :param products: Список товаров
+    :param page: Номер текущей страницы
+    :param per_page: Количество товаров на странице
+    :return: Отфильтрованный и пагинированный список товаров и общее количество страниц
+    """
+    # Фильтрация товаров, чтобы оставался только один товар с одинаковым product.model_name
+    filtered_products = []
+    seen_models = set()
+    for product in products:
+        print(product['model_name'])
+        if product['model_name'] not in seen_models:
+            filtered_products.append(product)
+            seen_models.add(product['model_name'])
 
+    # Обновляем общее количество товаров и страниц после фильтрации
+    total_filtered = len(filtered_products)
+    total_pages = (total_filtered + per_page - 1) // per_page
+
+    # Обрезаем список товаров для текущей страницы
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated_products = filtered_products[start:end]
+
+    return paginated_products, total_pages

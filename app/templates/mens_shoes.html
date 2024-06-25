@@ -15,6 +15,12 @@
         .product p.model, .product p.price {
             cursor: pointer;
         }
+        .price {
+            color: black;
+        }
+        .discount-price {
+            color: red;
+        }
     </style>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -136,8 +142,12 @@
                         {% endif %}
                     </div>
                     <p class="model">{{ product.model_name }}</p>
+                    {% if product.discount_price < product.price %}
                     <p class="price"><del>${{ product.price }}</del> <span class="discount-price">${{ product.discount_price }}</span></p>
                     <p class="discount-text">(Скидка {{ ((product.price - product.discount_price) / product.price * 100) | round(0) }}% )</p>
+                    {% else %}
+                    <p class="price">${{ product.price }}</p>
+                    {% endif %}
                 </div>
                 {% endfor %}
             </div>

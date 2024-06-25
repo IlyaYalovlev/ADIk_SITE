@@ -15,6 +15,12 @@
         .product p.model, .product p.price {
             cursor: pointer;
         }
+        .price {
+            color: black;
+        }
+        .discount-price {
+            color: red;
+        }
     </style>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -136,15 +142,19 @@
                         {% endif %}
                     </div>
                     <p class="model">{{ product.model_name }}</p>
+                    {% if product.discount_price < product.price %}
                     <p class="price"><del>${{ product.price }}</del> <span class="discount-price">${{ product.discount_price }}</span></p>
                     <p class="discount-text">(Скидка {{ ((product.price - product.discount_price) / product.price * 100) | round(0) }}% )</p>
+                    {% else %}
+                    <p class="price">${{ product.price }}</p>
+                    {% endif %}
                 </div>
                 {% endfor %}
             </div>
             <!-- Пагинация -->
             <div class="pagination">
                 {% if page > 1 %}
-                <a href="/mens-shoes/{{ page-1 }}" class="page-link">&laquo; Предыдущая</a>
+                <a href="/womens-shoes/{{ page-1 }}" class="page-link">&laquo; Предыдущая</a>
                 {% endif %}
                 {% set start_page = (page - 2) | default(1) | int %}
                 {% set end_page = (page + 2) | default(total_pages) | int %}
@@ -155,10 +165,10 @@
                 {% set end_page = total_pages %}
                 {% endif %}
                 {% for p in range(start_page, end_page + 1) %}
-                <a href="/mens-shoes/{{ p }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
+                <a href="/womens-shoes/{{ p }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
                 {% endfor %}
                 {% if page < total_pages %}
-                <a href="/mens-shoes/{{ page+1 }}" class="page-link">Следующая &raquo;</a>
+                <a href="/womens-shoes/{{ page+1 }}" class="page-link">Следующая &raquo;</a>
                 {% endif %}
             </div>
         </section>
