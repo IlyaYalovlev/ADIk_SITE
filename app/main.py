@@ -473,11 +473,12 @@ async def product_page(request: Request, product_id: str, db: AsyncSession = Dep
             "quantity": stock.quantity,
             "stock_id": stock.id
         })
-
+    print(product.gender)
     return templates.TemplateResponse("product.html", {
         "request": request,
         "product": product,
-        "stocks": stock_list
+        "stocks": stock_list,
+        "category": product.gender
     })
 
 

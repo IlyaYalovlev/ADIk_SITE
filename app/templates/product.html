@@ -205,16 +205,25 @@
             <div class="image-gallery">
                 <img id="mainImage" src="{{ product.image_side_url or '/static/default-image.png' }}" alt="Изображение товара" class="main-image" onerror="handleImageError(this)">
                 <div class="thumbnail-container">
-                    {% if product.image_top_url %}
-                    <img src="{{ product.image_top_url }}" alt="Изображение товара сверху" class="thumbnail" onclick="swapImage(this)" onerror="handleImageError(this)">
-                    {% endif %}
-                    {% if product.image_34_url %}
-                    <img src="{{ product.image_34_url }}" alt="Изображение товара под углом 34 градуса" class="thumbnail" onclick="swapImage(this)" onerror="handleImageError(this)">
-                    {% endif %}
+                    <img src="{{ product.image_top_url or '/static/default-image.png' }}" alt="Изображение товара сверху" class="thumbnail" onclick="swapImage(this)" onerror="handleImageError(this)">
+                    <img src="{{ product.image_34_url or '/static/default-image.png' }}" alt="Изображение товара под углом 34 градуса" class="thumbnail" onclick="swapImage(this)" onerror="handleImageError(this)">
                 </div>
             </div>
             <div class="product-info">
                 <h2>{{ product.model_name }}</h2>
+                <p>
+                    {% if category == 'M' %}
+                        Male
+                    {% elif category == 'W' %}
+                        Female
+                    {% elif category == 'U' %}
+                        Unisex
+                    {% elif category == 'K' %}
+                        Kids Unisex
+                    {% else %}
+                        Unknown
+                    {% endif %}
+                </p>
                 <p>Цена на официальном сайте: {{ product.price }}</p>
                 <table class="stock-table">
                     <thead>
@@ -236,7 +245,6 @@
                             <td>{{ stock.discount }}%</td>
                             <td>{{ stock.quantity }}</td>
                             <td><i class="fas fa-cart-plus add-to-cart" data-stock-id="{{ stock.stock_id }}"></i></td>
-                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>
