@@ -4,9 +4,36 @@
     <meta charset="UTF-8">
     <title>Профиль продавца - ADIK STORE</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .autocomplete-suggestions {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ccc;
+            z-index: 1000;
+            max-width: 200px;
+            overflow: hidden;
+            border-radius: 5px;
+            margin-top: 5px;
+        }
+
+        .autocomplete-suggestion {
+            padding: 5px;
+            cursor: pointer;
+            color: black;
+        }
+
+        .autocomplete-suggestion:hover {
+            background-color: #f0f0f0;
+        }
+    </style>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const userInfo = document.getElementById('user-info');
+            const searchBox = document.querySelector('.search-box');
+            const suggestionsContainer = document.createElement('div');
+            suggestionsContainer.className = 'autocomplete-suggestions';
+            document.body.appendChild(suggestionsContainer);
+
             const token = localStorage.getItem('profile_token');
             const userId = window.location.pathname.split('/').pop();
 
@@ -192,6 +219,48 @@
                     window.location.href = '/login';
                 });
             });
+
+            searchBox.addEventListener('input', async (event) => {
+                const query = event.target.value;
+                if (query.length > 2) {
+                    const response = await fetch(`/search-suggestions?query=${query}`);
+                    const suggestions = await response.json();
+                    showSuggestions(suggestions);
+                } else {
+                    suggestionsContainer.innerHTML = '';
+                }
+            });
+
+            searchBox.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    window.location.href = `/search?query=${encodeURIComponent(searchBox.value)}`;
+                }
+            });
+
+            function showSuggestions(suggestions) {
+                const rect = searchBox.getBoundingClientRect();
+                suggestionsContainer.style.left = `${rect.left}px`;
+                suggestionsContainer.style.top = `${rect.bottom}px`;
+                suggestionsContainer.style.width = `${rect.width}px`;
+                if (suggestions.length > 0) {
+                    const uniqueSuggestions = [...new Set(suggestions.map(s => s.model_name))];
+                    suggestionsContainer.innerHTML = uniqueSuggestions.slice(0, 5).map(suggestion => `
+                        <div class="autocomplete-suggestion" data-value="${suggestion}">
+                            ${suggestion}
+                        </div>
+                    `).join('');
+                } else {
+                    suggestionsContainer.innerHTML = '<div class="autocomplete-suggestion">нет вариантов</div>';
+                }
+                document.querySelectorAll('.autocomplete-suggestion').forEach(suggestionElement => {
+                    suggestionElement.addEventListener('click', (event) => {
+                        searchBox.value = event.target.getAttribute('data-value');
+                        suggestionsContainer.innerHTML = '';
+                        window.location.href = `/search?query=${encodeURIComponent(searchBox.value)}`;
+                    });
+                });
+            }
         });
 
         function handleImageError(image) {

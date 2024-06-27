@@ -141,14 +141,11 @@ async def get_popular_products(db: AsyncSession):
     return paginated_products
 
 async def get_mens_shoes(db: AsyncSession, page: int, per_page: int):
-    offset = (page - 1) * per_page
     result = await db.execute(
         select(Stock)
         .join(Product)
         .options(selectinload(Stock.product))
         .filter(Product.gender.in_(['M', 'U']))
-        .offset(offset)
-        .limit(per_page)
     )
     stocks = result.scalars().all()
     total_query = await db.execute(
@@ -157,7 +154,6 @@ async def get_mens_shoes(db: AsyncSession, page: int, per_page: int):
         .join(Product)
         .filter(Product.gender.in_(['M', 'U']))
     )
-    total = total_query.scalar_one()
     products = []
     for stock in stocks:
         product_data = {
@@ -171,17 +167,14 @@ async def get_mens_shoes(db: AsyncSession, page: int, per_page: int):
             "discount": round((1 - stock.discount_price / stock.price) * 100, 2) if stock.price else 0,
         }
         products.append(product_data)
-    return products, total
+    return products
 
 async def get_kids_shoes(db: AsyncSession, page: int, per_page: int):
-    offset = (page - 1) * per_page
     result = await db.execute(
         select(Stock)
         .join(Product)
         .options(selectinload(Stock.product))
         .filter(Product.gender.in_(['K']))
-        .offset(offset)
-        .limit(per_page)
     )
     stocks = result.scalars().all()
     total_query = await db.execute(
@@ -190,7 +183,6 @@ async def get_kids_shoes(db: AsyncSession, page: int, per_page: int):
         .join(Product)
         .filter(Product.gender.in_(['K']))
     )
-    total = total_query.scalar_one()
     products = []
     for stock in stocks:
         product_data = {
@@ -204,17 +196,14 @@ async def get_kids_shoes(db: AsyncSession, page: int, per_page: int):
             "discount": round((1 - stock.discount_price / stock.price) * 100, 2) if stock.price else 0,
         }
         products.append(product_data)
-    return products, total
+    return products
 
 async def get_womens_shoes(db: AsyncSession, page: int, per_page: int):
-    offset = (page - 1) * per_page
     result = await db.execute(
         select(Stock)
         .join(Product)
         .options(selectinload(Stock.product))
         .filter(Product.gender.in_(['W', 'U']))
-        .offset(offset)
-        .limit(per_page)
     )
     stocks = result.scalars().all()
     total_query = await db.execute(
@@ -223,7 +212,6 @@ async def get_womens_shoes(db: AsyncSession, page: int, per_page: int):
         .join(Product)
         .filter(Product.gender.in_(['W', 'U']))
     )
-    total = total_query.scalar_one()
     products = []
     for stock in stocks:
         product_data = {
@@ -237,7 +225,7 @@ async def get_womens_shoes(db: AsyncSession, page: int, per_page: int):
             "discount": round((1 - stock.discount_price / stock.price) * 100, 2) if stock.price else 0,
         }
         products.append(product_data)
-    return products, total
+    return products
 
 async def get_products(session: AsyncSession):
     result = await session.execute(select(models.Product))
@@ -362,7 +350,7 @@ async def paginate_products(products: List, page: int, per_page: int) -> Tuple[L
     start = (page - 1) * per_page
     end = start + per_page
     paginated_products = filtered_products[start:end]
-
+    print(total_filtered)
     return paginated_products, total_pages
 
 

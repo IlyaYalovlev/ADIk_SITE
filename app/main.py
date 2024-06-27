@@ -7,7 +7,7 @@ from jwt.exceptions import ExpiredSignatureError
 from fastapi import Header
 from jwt import decode as jwt_decode
 from fastapi import FastAPI, Depends, HTTPException, Form, Request,  Query
-from sqlalchemy import select
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -227,7 +227,7 @@ async def api_profile_customer(user_id: int, db: AsyncSession = Depends(get_db),
 @app.get("/mens-shoes/{page}", response_class=HTMLResponse)
 async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
     per_page = 28 # количество товаров на одной странице
-    products, total = await get_mens_shoes(db, page, per_page)
+    products = await get_mens_shoes(db, page, per_page)
     paginated_products, total_pages = await paginate_products(products, page, per_page)
     return templates.TemplateResponse("mens_shoes.html", {
         "request": request,
@@ -241,7 +241,7 @@ async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends
 @app.get("/womens-shoes/{page}", response_class=HTMLResponse)
 async def womens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
     per_page = 28 # количество товаров на одной странице
-    products, total = await get_womens_shoes(db, page, per_page)
+    products = await get_womens_shoes(db, page, per_page)
     paginated_products, total_pages = await paginate_products(products, page, per_page)
     return templates.TemplateResponse("womens_shoes.html", {
         "request": request,
@@ -255,7 +255,7 @@ async def womens_shoes(request: Request, page: int = 1, db: AsyncSession = Depen
 @app.get("/kids-shoes/{page}", response_class=HTMLResponse)
 async def kids_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
     per_page = 28 # количество товаров на одной странице
-    products, total = await get_kids_shoes(db, page, per_page)
+    products = await get_kids_shoes(db, page, per_page)
     paginated_products, total_pages = await paginate_products(products, page, per_page)
     return templates.TemplateResponse("kids_shoes.html", {
         "request": request,
@@ -624,3 +624,56 @@ async def update_products(request: StockUpdateRequest, db: AsyncSession = Depend
     except Exception as e:
         await db.rollback()
         return JSONResponse(status_code=500, content={"detail": str(e)})
+
+
+
+@app.get("/search-suggestions", response_class=JSONResponse)
+async def search_suggestions(query: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Product)
+        .join(Stock, Product.product_id == Stock.product_id)
+        .where(Product.model_name.ilike(f"%{query.lower()}%"))
+        .where(Stock.quantity > 0)
+    )
+    products = result.scalars().all()
+    suggestions = [{"model_name": product.model_name} for product in products]
+    return JSONResponse(content=suggestions)
+
+@app.get("/search", response_class=HTMLResponse)
+async def search_page(request: Request, query: str, db: AsyncSession = Depends(get_db)):
+    subquery = (
+        select(
+            Stock.product_id,
+            func.min(Stock.discount_price).label('min_discount_price')
+        )
+        .join(Product, Product.product_id == Stock.product_id)
+        .where(Product.model_name.ilike(f"%{query.lower()}%"))
+        .where(Stock.quantity > 0)
+        .group_by(Stock.product_id)
+        .subquery()
+    )
+
+    result = await db.execute(
+        select(Product, Stock)
+        .join(Stock, Product.product_id == Stock.product_id)
+        .join(subquery, and_(
+            Stock.product_id == subquery.c.product_id,
+            Stock.discount_price == subquery.c.min_discount_price
+        ))
+    )
+    products_and_stocks = result.unique().fetchall()
+
+    # Создание списка продуктов с объединенными данными
+    products = []
+    for product, stock in products_and_stocks:
+        products.append({
+            "product_id": product.product_id,
+            "model_name": product.model_name,
+            "image_side_url": product.image_side_url,
+            "image_top_url": product.image_top_url,
+            "image_34_url": product.image_34_url,
+            "price": stock.price,
+            "discount_price": stock.discount_price
+        })
+
+    return templates.TemplateResponse("search.html", {"request": request, "products": products, "query": query})

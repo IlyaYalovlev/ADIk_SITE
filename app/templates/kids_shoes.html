@@ -15,10 +15,99 @@
         .product p.model, .product p.price {
             cursor: pointer;
         }
+        .autocomplete-suggestions {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ccc;
+            z-index: 1000;
+            max-width: 200px;
+            overflow: hidden;
+            border-radius: 5px;
+            margin-top: 5px;
+        }
+
+        .autocomplete-suggestion {
+            padding: 5px;
+            cursor: pointer;
+            color: black;
+        }
+
+        .autocomplete-suggestion:hover {
+            background-color: #f0f0f0;
+        }
     </style>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <h1><a href="/">ADIK STORE</a></h1>
+            <div class="header-right">
+                <input type="text" class="search-box" placeholder="Поиск...">
+                <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
+                <span id="user-info"></span>
+            </div>
+        </div>
+        <nav>
+            <a href="/mens-shoes">Мужская обувь</a>
+            <a href="/womens-shoes">Женская обувь</a>
+            <a href="/kids-shoes" class="active">Детская обувь</a>
+        </nav>
+    </header>
+    <main>
+        <section>
+            <div class="products">
+                {% for product in products %}
+                <div class="product" data-product-id="{{ product.product_id }}">
+                    <div class="product-slider">
+                        {% if product.image_side_url %}
+                        <img src="{{ product.image_side_url }}" alt="Изображение сбоку товара" onerror="handleImageError(this)">
+                        {% endif %}
+                        {% if product.image_top_url %}
+                        <img src="{{ product.image_top_url }}" alt="Изображение товара сверху" onerror="handleImageError(this)">
+                        {% endif %}
+                        {% if product.image_34_url %}
+                        <img src="{{ product.image_34_url }}" alt="Изображение товара под углом 34 градуса" onerror="handleImageError(this)">
+                        {% endif %}
+                    </div>
+                    <p class="model">{{ product.model_name }}</p>
+                    <p class="price"><del>{{ product.price }}</del> <span class="discount-price">{{ product.discount_price }}</span></p>
+                    {% if product.discount_price < product.price %}
+                    <p class="discount-text">(Скидка {{ ((product.price - product.discount_price) / product.price * 100) | round(0) }}% )</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            <!-- Пагинация -->
+            <div class="pagination">
+                {% if page > 1 %}
+                <a href="/mens-shoes/{{ page-1 }}" class="page-link">&laquo; Предыдущая</a>
+                {% endif %}
+                {% set start_page = (page - 2) | default(1) | int %}
+                {% set end_page = (page + 2) | default(total_pages) | int %}
+                {% if start_page < 1 %}
+                {% set start_page = 1 %}
+                {% endif %}
+                {% if end_page > total_pages %}
+                {% set end_page = total_pages %}
+                {% endif %}
+                {% for p in range(start_page, end_page + 1) %}
+                <a href="/mens-shoes/{{ p }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
+                {% endfor %}
+                {% if page < total_pages %}
+                <a href="/mens-shoes/{{ page+1 }}" class="page-link">Следующая &raquo;</a>
+                {% endif %}
+            </div>
+        </section>
+    </main>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const userInfo = document.getElementById('user-info');
+            const searchBox = document.querySelector('.search-box');
+            const suggestionsContainer = document.createElement('div');
+            suggestionsContainer.className = 'autocomplete-suggestions';
+            document.body.appendChild(suggestionsContainer);
 
             function updateUserInfo() {
                 const token = localStorage.getItem('access_token');
@@ -86,6 +175,48 @@
                     redirectToModel(productId);
                 });
             });
+
+            searchBox.addEventListener('input', async (event) => {
+                const query = event.target.value;
+                if (query.length > 2) {
+                    const response = await fetch(`/search-suggestions?query=${query}`);
+                    const suggestions = await response.json();
+                    showSuggestions(suggestions);
+                } else {
+                    suggestionsContainer.innerHTML = '';
+                }
+            });
+
+            searchBox.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    window.location.href = `/search?query=${encodeURIComponent(searchBox.value)}`;
+                }
+            });
+
+            function showSuggestions(suggestions) {
+                const rect = searchBox.getBoundingClientRect();
+                suggestionsContainer.style.left = `${rect.left}px`;
+                suggestionsContainer.style.top = `${rect.bottom}px`;
+                suggestionsContainer.style.width = `${rect.width}px`;
+                if (suggestions.length > 0) {
+                    const uniqueSuggestions = [...new Set(suggestions.map(s => s.model_name))];
+                    suggestionsContainer.innerHTML = uniqueSuggestions.slice(0, 5).map(suggestion => `
+                        <div class="autocomplete-suggestion" data-value="${suggestion}">
+                            ${suggestion}
+                        </div>
+                    `).join('');
+                } else {
+                    suggestionsContainer.innerHTML = '<div class="autocomplete-suggestion">нет вариантов</div>';
+                }
+                document.querySelectorAll('.autocomplete-suggestion').forEach(suggestionElement => {
+                    suggestionElement.addEventListener('click', (event) => {
+                        searchBox.value = event.target.getAttribute('data-value');
+                        suggestionsContainer.innerHTML = '';
+                        window.location.href = `/search?query=${encodeURIComponent(searchBox.value)}`;
+                    });
+                });
+            }
         });
 
         function handleImageError(image) {
@@ -102,70 +233,5 @@
             window.location.href = `/product/${productId}`;
         }
     </script>
-</head>
-<body>
-    <header>
-        <div class="header-container">
-            <h1><a href="/">ADIK STORE</a></h1>
-            <div class="header-right">
-                <input type="text" class="search-box" placeholder="Поиск...">
-                <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
-                <span id="user-info"></span>
-            </div>
-        </div>
-        <nav>
-            <a href="/mens-shoes">Мужская обувь</a>
-            <a href="/womens-shoes">Женская обувь</a>
-            <a href="/kids-shoes" class="active">Детская обувь</a>
-        </nav>
-    </header>
-    <main>
-        <section>
-            <div class="products">
-                {% for product in products %}
-                <div class="product" data-product-id="{{ product.product_id }}">
-                    <div class="product-slider">
-                        {% if product.image_side_url %}
-                        <img src="{{ product.image_side_url }}" alt="Изображение сбоку товара" onerror="handleImageError(this)">
-                        {% endif %}
-                        {% if product.image_top_url %}
-                        <img src="{{ product.image_top_url }}" alt="Изображение товара сверху" onerror="handleImageError(this)">
-                        {% endif %}
-                        {% if product.image_34_url %}
-                        <img src="{{ product.image_34_url }}" alt="Изображение товара под углом 34 градуса" onerror="handleImageError(this)">
-                        {% endif %}
-                    </div>
-                    <p class="model">{{ product.model_name }}</p>
-                    <p class="price"><del>{{ product.price }}</del> <span class="discount-price">{{ product.discount_price }}</span></p>
-                    {% if product.discount_price < product.price %}
-                    <p class="discount-text">(Скидка {{ ((product.price - product.discount_price) / product.price * 100) | round(0) }}% )</p>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
-            <!-- Пагинация -->
-            <div class="pagination">
-                {% if page > 1 %}
-                <a href="/mens-shoes/{{ page-1 }}" class="page-link">&laquo; Предыдущая</a>
-                {% endif %}
-                {% set start_page = (page - 2) | default(1) | int %}
-                {% set end_page = (page + 2) | default(total_pages) | int %}
-                {% if start_page < 1 %}
-                {% set start_page = 1 %}
-                {% endif %}
-                {% if end_page > total_pages %}
-                {% set end_page = total_pages %}
-                {% endif %}
-                {% for p in range(start_page, end_page + 1) %}
-                <a href="/mens-shoes/{{ p }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
-                {% endfor %}
-                {% if page < total_pages %}
-                <a href="/mens-shoes/{{ page+1 }}" class="page-link">Следующая &raquo;</a>
-                {% endif %}
-            </div>
-        </section>
-    </main>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
 </body>
 </html>
