@@ -2,7 +2,7 @@ import os
 import uuid
 from email.header import Header
 from email.mime.text import MIMEText
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 import aiofiles
 import aiosmtplib
 from fastapi import HTTPException, UploadFile
@@ -14,8 +14,9 @@ from sqlalchemy.orm import selectinload, joinedload
 from config import EMAIL, PASSWORD
 from . import models, schemas
 from decimal import Decimal
-from .models import Stock, Product, Users, Purchase
 
+from .database import get_db
+from .models import Stock, Product, Users, Purchase, Cart, CartItem
 
 
 # User CRUD operations
@@ -366,3 +367,42 @@ async def save_image(file: UploadFile, folder: str) -> str:
         await out_file.write(content)
 
     return f"/static/uploads/{unique_filename}"
+
+
+async def get_cart_by_user_id(db: AsyncSession, user_id: int) -> Optional[Cart]:
+    result = await db.execute(select(Cart).where(Cart.user_id == user_id))
+    return result.scalars().first()
+
+async def get_cart_by_session_id(db: AsyncSession, session_id: str) -> Optional[Cart]:
+    result = await db.execute(select(Cart).where(Cart.session_id == session_id))
+    return result.scalars().first()
+
+async def create_cart(db: AsyncSession, user_id: Optional[int] = None, session_id: Optional[str] = None) -> Cart:
+    cart = Cart(user_id=user_id, session_id=session_id)
+    db.add(cart)
+    return cart
+
+async def get_cart_item(db: AsyncSession, cart_id: int, stock_id: int) -> Optional[CartItem]:
+    result = await db.execute(select(CartItem).where(CartItem.cart_id == cart_id, CartItem.stock_id == stock_id))
+    return result.scalars().first()
+
+async def create_cart_item(db: AsyncSession, cart_id: int, stock_id: int, quantity: int) -> CartItem:
+    cart_item = CartItem(cart_id=cart_id, stock_id=stock_id, quantity=quantity)
+    db.add(cart_item)
+    await db.commit()
+    await db.refresh(cart_item)
+    return cart_item
+
+async def update_cart_item_quantity(db: AsyncSession, cart_item: CartItem, quantity: int) -> CartItem:
+    cart_item.quantity += quantity
+    await db.commit()
+    await db.refresh(cart_item)
+    return cart_item
+
+async def get_all_cart_items(db: AsyncSession, cart_id: int):
+    result = await db.execute(
+        select(CartItem).where(CartItem.cart_id == cart_id).options(joinedload(CartItem.stock))
+    )
+    return result.scalars().all()
+
+

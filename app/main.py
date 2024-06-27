@@ -1,8 +1,10 @@
 import os
+import uuid
+
 import aiofiles
 from decimal import Decimal
 from typing import Optional, List
-from fastapi import HTTPException, status, UploadFile, File
+from fastapi import HTTPException, status, UploadFile, File, Cookie, Response
 from jwt.exceptions import ExpiredSignatureError
 from fastapi import Header
 from jwt import decode as jwt_decode
@@ -20,10 +22,11 @@ from . import schemas, crud
 from .auth import create_access_token, get_current_user_id, generate_confirmation_token, confirm_token
 from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
     get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products, \
-    get_products, create_stock_item, paginate_products, save_image
+    get_products, paginate_products, save_image, get_cart_by_user_id, get_cart_by_session_id, create_cart, \
+    get_cart_item, update_cart_item_quantity, create_cart_item, get_all_cart_items
 from .database import get_db
-from .models import Users, Product, Stock
-from .schemas import UserDetails, User, StockCreate, StockUpdateRequest
+from .models import Users, Product, Stock, CartItem, Cart
+from .schemas import UserDetails, StockUpdateRequest, AddToCartRequest, CartItemSchema, CartSchema
 from passlib.hash import bcrypt
 from app.tasks.tasks import send_email
 
@@ -678,3 +681,112 @@ async def search_page(request: Request, query: str, db: AsyncSession = Depends(g
         })
 
     return templates.TemplateResponse("search.html", {"request": request, "products": products, "query": query})
+
+
+@app.post("/cart/init", response_model=CartSchema)
+async def init_cart(
+        response: Response,
+        db: AsyncSession = Depends(get_db),
+        session_id: Optional[str] = Cookie(None),
+        authorization: Optional[str] = Header(None)
+):
+    user_id = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        user_id = get_current_user_id(token)
+
+    if not session_id:
+        session_id = str(uuid.uuid4())
+        response.set_cookie(key="session_id", value=session_id)
+
+    async with db.begin():
+        if user_id:
+            cart = await get_cart_by_user_id(db, user_id)
+        else:
+            cart = await get_cart_by_session_id(db, session_id)
+
+        if not cart:
+            cart = await create_cart(db, user_id=user_id, session_id=session_id if not user_id else None)
+
+    # Обновляем объект и загружаем связанные элементы корзины
+    await db.refresh(cart)  # Обновляем объект корзины
+
+    cart_items = await db.execute(
+        select(CartItem).where(CartItem.cart_id == cart.id).options(joinedload(CartItem.stock))
+    )
+    cart.items = cart_items.scalars().all()
+
+    # Преобразование в Pydantic модель
+    return CartSchema.from_orm(cart)
+
+
+
+@app.post("/cart/add", response_model=List[CartItemSchema])
+async def add_to_cart(
+        add_to_cart_request: AddToCartRequest,
+        db: AsyncSession = Depends(get_db),
+        session_id: Optional[str] = Cookie(None),
+        authorization: Optional[str] = Header(None)
+):
+    user_id = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        user_id = get_current_user_id(token)
+
+    stock_id = add_to_cart_request.stock_id
+    quantity = add_to_cart_request.quantity
+
+    async with db.begin():
+        if user_id:
+            cart = await get_cart_by_user_id(db, user_id)
+        else:
+            cart = await get_cart_by_session_id(db, session_id)
+
+        if not cart:
+            raise HTTPException(status_code=404, detail="Cart not found")
+
+        cart_item = await get_cart_item(db, cart.id, stock_id)
+
+        if cart_item:
+            cart_item = await update_cart_item_quantity(db, cart_item, quantity)
+        else:
+            cart_item = await create_cart_item(db, cart.id, stock_id, quantity)
+
+        await db.commit()
+        await db.refresh(cart_item)
+
+    # Используем отдельную сессию для загрузки всех элементов корзины
+    async with db.begin():
+        cart_items = await get_all_cart_items(db, cart.id)
+
+    return [CartItemSchema.from_orm(item) for item in cart_items]
+
+
+@app.get("/cart", response_model=List[CartItemSchema])
+async def get_cart(
+        db: AsyncSession = Depends(get_db),
+        session_id: Optional[str] = Cookie(None),
+        authorization: Optional[str] = Header(None)
+):
+    user_id = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        user_id = get_current_user_id(token)
+
+    async with db.begin():
+        if user_id:
+            cart = await get_cart_by_user_id(db, user_id)
+        else:
+            cart = await get_cart_by_session_id(db, session_id)
+
+        if not cart:
+            return []
+
+        cart_items = await get_all_cart_items(db, cart.id)
+
+    return [CartItemSchema.from_orm(item) for item in cart_items]
+
+
+
+
+

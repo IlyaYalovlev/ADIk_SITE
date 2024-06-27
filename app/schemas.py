@@ -4,6 +4,9 @@ from typing import Optional, List
 from decimal import Decimal
 from pydantic_settings import BaseSettings
 
+from app.models import CartItem
+
+
 # User Schemas
 class UserBase(BaseModel):
     id: int
@@ -117,3 +120,76 @@ class StockUpdate(BaseModel):
 
 class StockUpdateRequest(BaseModel):
     products: List[StockUpdate]
+
+class StockBase(BaseModel):
+    product_id: str
+    seller_id: int
+    size: float
+    price: float
+    discount_price: float
+
+    class Config:
+        from_attributes = True
+
+class CartItemBase(BaseModel):
+    stock_id: int
+    quantity: int
+
+class CartItemCreate(CartItemBase):
+    pass
+
+class CartItemUpdate(CartItemBase):
+    pass
+
+class CartItemInDBBase(CartItemBase):
+    id: int
+    cart_id: int
+    stock: StockBase
+
+    class Config:
+        from_attributes = True
+
+class CartItem(CartItemInDBBase):
+    pass
+
+class CartBase(BaseModel):
+    user_id: Optional[int]
+    session_id: Optional[str]
+
+class CartCreate(CartBase):
+    pass
+
+class CartUpdate(CartBase):
+    pass
+
+class CartInDBBase(CartBase):
+    id: int
+    items: List[CartItem]
+
+    class Config:
+        from_attributes = True
+
+
+
+class AddToCartRequest(BaseModel):
+    stock_id: int
+    quantity: int
+
+
+class CartItemSchema(BaseModel):
+    id: int
+    cart_id: int
+    stock_id: int
+    quantity: int
+
+    class Config:
+        from_attributes = True
+
+class CartSchema(BaseModel):
+    id: int
+    user_id: Optional[int]
+    session_id: Optional[str]
+    items: List[CartItemSchema] = []
+
+    class Config:
+        from_attributes = True

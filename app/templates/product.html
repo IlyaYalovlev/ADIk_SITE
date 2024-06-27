@@ -59,28 +59,51 @@
             cursor: pointer;
             color: #333;
         }
-        .autocomplete-suggestions {
-            position: absolute;
+        .popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            max-width: 600px;
+            padding: 20px;
             background-color: white;
-            border: 1px solid #ccc;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
             z-index: 1000;
-            max-width: 200px;
-            overflow: hidden;
-            border-radius: 5px;
-            margin-top: 5px;
         }
-
-        .autocomplete-suggestion {
-            padding: 5px;
+        .popup h2 {
+            margin-top: 0;
+        }
+        .popup .close-btn {
             cursor: pointer;
-            color: black;
+            color: red;
         }
-
-        .autocomplete-suggestion:hover {
-            background-color: #f0f0f0;
+        .notification {
+            display: none;
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+        .centered-notification {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
         }
     </style>
-    <script>
+<script>
         document.addEventListener('DOMContentLoaded', () => {
             const userInfo = document.getElementById('user-info');
             const searchBox = document.querySelector('.search-box');
@@ -90,13 +113,10 @@
 
             function updateUserInfo() {
                 const token = localStorage.getItem('access_token');
-
                 if (token) {
                     fetch('/user-info', {
                         method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
+                        headers: { 'Authorization': `Bearer ${token}` }
                     })
                     .then(response => response.json())
                     .then(data => {
@@ -178,9 +198,89 @@
             thumbnail.src = tempSrc;
         }
 
-        function redirectToProfile(profileUrl, token) {
-            localStorage.setItem('profile_token', token);
-            window.location.href = profileUrl;
+        async function initCart() {
+            const token = localStorage.getItem('access_token');
+            let headers = {
+                'Content-Type': 'application/json'
+            };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const response = await fetch('/cart/init', {
+                method: 'POST',
+                headers: headers
+            });
+
+            if (!response.ok) {
+                console.error('Ошибка инициализации корзины');
+                return null;
+            }
+
+            const cart = await response.json();
+            return cart;
+        }
+
+        async function addToCart(stockId, quantity) {
+            const token = localStorage.getItem('access_token');
+            let headers = {
+                'Content-Type': 'application/json'
+            };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            // Инициализируем корзину, если она еще не существует
+            const cart = await initCart();
+            if (!cart) {
+                console.error('Не удалось инициализировать корзину');
+                return;
+            }
+
+            fetch('/cart/add', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({ stock_id: stockId, quantity: quantity })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showCenteredNotification(`Товар с ID ${stockId} добавлен в корзину`);
+                showCartPopup(data);
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function showCartPopup(items) {
+            const popup = document.getElementById('cart-popup');
+            const cartItemsContainer = document.getElementById('cart-items');
+            cartItemsContainer.innerHTML = '';
+
+            items.forEach(item => {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'cart-item';
+                itemElement.innerHTML = `
+                    <p>Product: ${item.stock.product.model_name}</p>
+                    <p>Quantity: ${item.quantity}</p>
+                    <p>Price: ${item.stock.price}</p>
+                `;
+                cartItemsContainer.appendChild(itemElement);
+            });
+
+            popup.style.display = 'block';
+        }
+
+        function closeCartPopup() {
+            const popup = document.getElementById('cart-popup');
+            popup.style.display = 'none';
+        }
+
+        function showCenteredNotification(message) {
+            const notification = document.getElementById('centered-notification');
+            notification.textContent = message;
+            notification.style.display = 'block';
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
         }
     </script>
 </head>
@@ -190,7 +290,7 @@
             <h1><a href="/">ADIK STORE</a></h1>
             <div class="header-right">
                 <input type="text" class="search-box" placeholder="Поиск...">
-                <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
+                <a href="#" class="cart-button" onclick="showCartPopup([])"><i class="fas fa-shopping-cart"></i> Корзина</a>
                 <span id="user-info"></span>
             </div>
         </div>
@@ -214,7 +314,7 @@
                 <p>
                     {% if category == 'M' %}
                         Male
-                    {% elif category == 'W' %}
+                    {% elif category == 'F' %}
                         Female
                     {% elif category == 'U' %}
                         Unisex
@@ -233,7 +333,7 @@
                             <th>Цена со скидкой</th>
                             <th>Скидка</th>
                             <th>Количество</th>
-                            <th></th>
+                            <th>Добавить в корзину</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -244,20 +344,19 @@
                             <td>{{ stock.discount_price }}</td>
                             <td>{{ stock.discount }}%</td>
                             <td>{{ stock.quantity }}</td>
-                            <td><i class="fas fa-cart-plus add-to-cart" data-stock-id="{{ stock.stock_id }}"></i></td>
+                            <td><button class="add-to-cart" data-stock-id="{{ stock.stock_id }}" onclick="addToCart({{ stock.stock_id }}, 1)">Добавить в корзину</button></td>
+                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
         </div>
     </main>
-    <script>
-        document.querySelectorAll('.add-to-cart').forEach(button => {
-            button.addEventListener('click', () => {
-                const stockId = button.dataset.stockId;
-                alert(`Товар с ID ${stockId} добавлен в корзину`);
-            });
-        });
-    </script>
+    <div id="cart-popup" class="popup">
+        <h2>Корзина</h2>
+        <span class="close-btn" onclick="closeCartPopup()">Закрыть</span>
+        <div id="cart-items"></div>
+    </div>
+    <div id="centered-notification" class="centered-notification"></div>
 </body>
 </html>
