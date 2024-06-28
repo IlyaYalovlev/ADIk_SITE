@@ -43,6 +43,7 @@ class Stock(Base):
     product = relationship("Product", back_populates="stocks")
     seller = relationship("Users", back_populates="stocks")
     purchases = relationship("Purchase", back_populates="stock")
+    cart_items = relationship("CartItem", back_populates="stock")
 
 class Purchase(Base):
     __tablename__ = 'purchases'
@@ -95,4 +96,4 @@ class CartItem(Base):
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
     cart = relationship("Cart", back_populates="items")
-    stock = relationship("Stock")
+    stock = relationship("Stock", back_populates="cart_items")

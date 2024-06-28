@@ -131,65 +131,60 @@ class StockBase(BaseModel):
     class Config:
         from_attributes = True
 
-class CartItemBase(BaseModel):
-    stock_id: int
-    quantity: int
-
-class CartItemCreate(CartItemBase):
-    pass
-
-class CartItemUpdate(CartItemBase):
-    pass
-
-class CartItemInDBBase(CartItemBase):
-    id: int
-    cart_id: int
-    stock: StockBase
+class ProductSchema(BaseModel):
+    product_id: str
+    brand: str
+    category: Optional[str]
+    model_name: str
+    color: Optional[str]
+    price: str
+    discount: Optional[str]
+    image_side_url: Optional[str]
+    image_top_url: Optional[str]
+    image_34_url: Optional[str]
+    gender: Optional[str]
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
-class CartItem(CartItemInDBBase):
-    pass
-
-class CartBase(BaseModel):
-    user_id: Optional[int]
-    session_id: Optional[str]
-
-class CartCreate(CartBase):
-    pass
-
-class CartUpdate(CartBase):
-    pass
-
-class CartInDBBase(CartBase):
+class StockSchema(BaseModel):
     id: int
-    items: List[CartItem]
+    product_id: str
+    seller_id: int
+    size: float
+    quantity: int
+    price: float
+    discount_price: float
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+    product: ProductSchema
 
     class Config:
-        from_attributes = True
-
-
-
-class AddToCartRequest(BaseModel):
-    stock_id: int
-    quantity: int
-
+        orm_mode = True
 
 class CartItemSchema(BaseModel):
     id: int
     cart_id: int
     stock_id: int
     quantity: int
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+    stock: StockSchema
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class CartSchema(BaseModel):
     id: int
     user_id: Optional[int]
     session_id: Optional[str]
-    items: List[CartItemSchema] = []
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+    items: List[CartItemSchema]
 
     class Config:
-        from_attributes = True
+        orm_mode = True
+
+class AddCartItemSchema(BaseModel):
+    stock_id: int
+    quantity: int

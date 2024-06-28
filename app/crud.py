@@ -369,40 +369,33 @@ async def save_image(file: UploadFile, folder: str) -> str:
     return f"/static/uploads/{unique_filename}"
 
 
-async def get_cart_by_user_id(db: AsyncSession, user_id: int) -> Optional[Cart]:
-    result = await db.execute(select(Cart).where(Cart.user_id == user_id))
-    return result.scalars().first()
-
-async def get_cart_by_session_id(db: AsyncSession, session_id: str) -> Optional[Cart]:
-    result = await db.execute(select(Cart).where(Cart.session_id == session_id))
-    return result.scalars().first()
-
-async def create_cart(db: AsyncSession, user_id: Optional[int] = None, session_id: Optional[str] = None) -> Cart:
+async def create_cart(db, user_id: int = None, session_id: str = None):
     cart = Cart(user_id=user_id, session_id=session_id)
     db.add(cart)
+    await db.commit()
+    await db.refresh(cart)
     return cart
 
-async def get_cart_item(db: AsyncSession, cart_id: int, stock_id: int) -> Optional[CartItem]:
-    result = await db.execute(select(CartItem).where(CartItem.cart_id == cart_id, CartItem.stock_id == stock_id))
+
+async def get_cart(db, user_id: int = None, session_id: str = None):
+    query = select(Cart).options(
+        joinedload(Cart.items).joinedload(CartItem.stock).joinedload(Stock.product)
+    )
+
+    if user_id:
+        query = query.filter(Cart.user_id == user_id)
+    elif session_id:
+        query = query.filter(Cart.session_id == session_id)
+    else:
+        return None
+
+    result = await db.execute(query)
     return result.scalars().first()
 
-async def create_cart_item(db: AsyncSession, cart_id: int, stock_id: int, quantity: int) -> CartItem:
+
+async def add_cart_item(db, cart_id: int, stock_id: int, quantity: int):
     cart_item = CartItem(cart_id=cart_id, stock_id=stock_id, quantity=quantity)
     db.add(cart_item)
     await db.commit()
     await db.refresh(cart_item)
     return cart_item
-
-async def update_cart_item_quantity(db: AsyncSession, cart_item: CartItem, quantity: int) -> CartItem:
-    cart_item.quantity += quantity
-    await db.commit()
-    await db.refresh(cart_item)
-    return cart_item
-
-async def get_all_cart_items(db: AsyncSession, cart_id: int):
-    result = await db.execute(
-        select(CartItem).where(CartItem.cart_id == cart_id).options(joinedload(CartItem.stock))
-    )
-    return result.scalars().all()
-
-

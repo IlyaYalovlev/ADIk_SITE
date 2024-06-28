@@ -22,11 +22,10 @@ from . import schemas, crud
 from .auth import create_access_token, get_current_user_id, generate_confirmation_token, confirm_token
 from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
     get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products, \
-    get_products, paginate_products, save_image, get_cart_by_user_id, get_cart_by_session_id, create_cart, \
-    get_cart_item, update_cart_item_quantity, create_cart_item, get_all_cart_items
+    get_products, paginate_products, save_image, create_cart, get_cart, add_cart_item
 from .database import get_db
 from .models import Users, Product, Stock, CartItem, Cart
-from .schemas import UserDetails, StockUpdateRequest, AddToCartRequest, CartItemSchema, CartSchema
+from .schemas import UserDetails, StockUpdateRequest, CartSchema, AddCartItemSchema
 from passlib.hash import bcrypt
 from app.tasks.tasks import send_email
 
@@ -49,6 +48,13 @@ templates = Jinja2Templates(directory="app/templates")
 SECRET_KEY = SECRET
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# Custom filter to slice a list
+def slice_list(value, limit):
+    return value[:limit]
+
+# Add the filter to Jinja2 environment
+templates.env.filters['slice'] = slice_list
 
 # Маршрут для отображения формы авторизации
 @app.get("/login", response_class=HTMLResponse)
@@ -585,7 +591,14 @@ async def create_product_form(
     side_view_url = await save_image(side_view, 'static/uploads')
     top_view_url = await save_image(top_view, 'static/uploads')
     three_quarter_view_url = await save_image(three_quarter_view, 'static/uploads')
-
+    if gender.lower() == 'мужские':
+        gender = 'M'
+    elif gender.lower() == 'женские':
+        gender = 'W'
+    elif gender.lower() == 'унисекс':
+            gender = 'U'
+    elif gender.lower() == 'детские':
+        gender = 'K'
     new_product = Product(
         brand=collection,
         model_name=model_name,
@@ -684,109 +697,30 @@ async def search_page(request: Request, query: str, db: AsyncSession = Depends(g
 
 
 @app.post("/cart/init", response_model=CartSchema)
-async def init_cart(
-        response: Response,
-        db: AsyncSession = Depends(get_db),
-        session_id: Optional[str] = Cookie(None),
-        authorization: Optional[str] = Header(None)
-):
-    user_id = None
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ")[1]
-        user_id = get_current_user_id(token)
-
-    if not session_id:
-        session_id = str(uuid.uuid4())
-        response.set_cookie(key="session_id", value=session_id)
-
-    async with db.begin():
-        if user_id:
-            cart = await get_cart_by_user_id(db, user_id)
-        else:
-            cart = await get_cart_by_session_id(db, session_id)
-
+async def init_cart(user_id: int = None, session_id: str = None, db: AsyncSession = Depends(get_db)):
+    try:
+        cart = await get_cart(db, user_id=user_id, session_id=session_id)
         if not cart:
-            cart = await create_cart(db, user_id=user_id, session_id=session_id if not user_id else None)
+            cart = await create_cart(db, user_id=user_id, session_id=session_id)
+        return cart
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-    # Обновляем объект и загружаем связанные элементы корзины
-    await db.refresh(cart)  # Обновляем объект корзины
-
-    cart_items = await db.execute(
-        select(CartItem).where(CartItem.cart_id == cart.id).options(joinedload(CartItem.stock))
-    )
-    cart.items = cart_items.scalars().all()
-
-    # Преобразование в Pydantic модель
-    return CartSchema.from_orm(cart)
-
-
-
-@app.post("/cart/add", response_model=List[CartItemSchema])
-async def add_to_cart(
-        add_to_cart_request: AddToCartRequest,
-        db: AsyncSession = Depends(get_db),
-        session_id: Optional[str] = Cookie(None),
-        authorization: Optional[str] = Header(None)
-):
-    user_id = None
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ")[1]
-        user_id = get_current_user_id(token)
-
-    stock_id = add_to_cart_request.stock_id
-    quantity = add_to_cart_request.quantity
-
-    async with db.begin():
-        if user_id:
-            cart = await get_cart_by_user_id(db, user_id)
-        else:
-            cart = await get_cart_by_session_id(db, session_id)
-
+@app.post("/cart/add", response_model=CartSchema)
+async def add_to_cart(item: AddCartItemSchema, user_id: int = None, session_id: str = None, db: AsyncSession = Depends(get_db)):
+    try:
+        cart = await get_cart(db, user_id=user_id, session_id=session_id)
         if not cart:
-            raise HTTPException(status_code=404, detail="Cart not found")
+            cart = await create_cart(db, user_id=user_id, session_id=session_id)
 
-        cart_item = await get_cart_item(db, cart.id, stock_id)
+        stock = await db.get(Stock, item.stock_id)
+        if stock is None or stock.quantity < item.quantity:
+            raise HTTPException(status_code=400, detail="Not enough stock available")
 
-        if cart_item:
-            cart_item = await update_cart_item_quantity(db, cart_item, quantity)
-        else:
-            cart_item = await create_cart_item(db, cart.id, stock_id, quantity)
-
-        await db.commit()
-        await db.refresh(cart_item)
-
-    # Используем отдельную сессию для загрузки всех элементов корзины
-    async with db.begin():
-        cart_items = await get_all_cart_items(db, cart.id)
-
-    return [CartItemSchema.from_orm(item) for item in cart_items]
-
-
-@app.get("/cart", response_model=List[CartItemSchema])
-async def get_cart(
-        db: AsyncSession = Depends(get_db),
-        session_id: Optional[str] = Cookie(None),
-        authorization: Optional[str] = Header(None)
-):
-    user_id = None
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ")[1]
-        user_id = get_current_user_id(token)
-
-    async with db.begin():
-        if user_id:
-            cart = await get_cart_by_user_id(db, user_id)
-        else:
-            cart = await get_cart_by_session_id(db, session_id)
-
-        if not cart:
-            return []
-
-        cart_items = await get_all_cart_items(db, cart.id)
-
-    return [CartItemSchema.from_orm(item) for item in cart_items]
-
-
-
-
+        await add_cart_item(db, cart.id, item.stock_id, item.quantity)
+        return await get_cart(db, user_id=user_id, session_id=session_id)
+    except HTTPException as http_err:
+        raise http_err
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 

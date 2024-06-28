@@ -59,64 +59,220 @@
             cursor: pointer;
             color: #333;
         }
-        .popup {
+        .autocomplete-suggestions {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ccc;
+            z-index: 1000;
+            max-width: 200px;
+            overflow: hidden;
+            border-radius: 5px;
+            margin-top: 5px;
+        }
+        .autocomplete-suggestion {
+            padding: 5px;
+            cursor: pointer;
+            color: black;
+        }
+        .autocomplete-suggestion:hover {
+            background-color: #f0f0f0;
+        }
+        .cart-badge {
+            position: relative;
+            display: inline-block;
+        }
+        .cart-badge .cart-count {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: red;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 6px;
+            font-size: 12px;
+        }
+        .cart-modal {
             display: none;
             position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+        }
+        .cart-modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
             width: 80%;
             max-width: 600px;
-            padding: 20px;
-            background-color: white;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-            z-index: 1000;
+            overflow-y: auto;
         }
-        .popup h2 {
-            margin-top: 0;
+        .cart-modal-content table {
+            width: 100%;
+            border-collapse: collapse;
         }
-        .popup .close-btn {
-            cursor: pointer;
-            color: red;
-        }
-        .notification {
-            display: none;
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background-color: #4CAF50;
-            color: white;
+        .cart-modal-content table th, .cart-modal-content table td {
             padding: 10px;
-            border-radius: 5px;
-            z-index: 1000;
+            border: 1px solid #ddd;
         }
-        .centered-notification {
-            display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
-            z-index: 1000;
+        .cart-modal-content table th {
+            background: #f2f2f2;
         }
     </style>
-<script>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <h1><a href="/">ADIK STORE</a></h1>
+            <div class="header-right">
+                <input type="text" class="search-box" placeholder="Поиск...">
+                <div class="cart-badge">
+                    <a href="#" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина <span class="cart-count">0</span></a>
+                </div>
+                <span id="user-info"></span>
+            </div>
+        </div>
+        <nav>
+            <a href="/mens-shoes">Мужская обувь</a>
+            <a href="/womens-shoes">Женская обувь</a>
+            <a href="/kids-shoes">Детская обувь</a>
+        </nav>
+    </header>
+    <main>
+        <div class="container">
+            <div class="image-gallery">
+                <img id="mainImage" src="{{ product.image_side_url or '/static/default-image.png' }}" alt="Изображение товара" class="main-image" onerror="handleImageError(this)">
+                <div class="thumbnail-container">
+                    {% set images = [product.image_top_url, product.image_34_url, product.image_side_url]|select('!=', None)|list %}
+                    {% for image in images[:3] %}
+                    <img src="{{ image }}" alt="Изображение товара" class="thumbnail" onclick="swapImage(this)" onerror="handleImageError(this)">
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="product-info">
+                <h2>{{ product.model_name }}</h2>
+                <p>
+                    {% if product.category == 'M' %}
+                        Мужской
+                    {% elif product.category == 'W' %}
+                        Женский
+                    {% elif product.category == 'U' %}
+                        Унисекс
+                    {% elif product.category == 'K' %}
+                        Детский унисекс
+                    {% else %}
+                        Неизвестно
+                    {% endif %}
+                </p>
+                <p>Цена на официальном сайте: {{ product.price }}</p>
+                <table class="stock-table">
+                    <thead>
+                        <tr>
+                            <th>Продавец</th>
+                            <th>Размер</th>
+                            <th>Цена со скидкой</th>
+                            <th>Скидка</th>
+                            <th>Количество</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stock in stocks %}
+                        <tr>
+                            <td>{{ stock.seller }}</td>
+                            <td>{{ stock.size }}</td>
+                            <td>{{ stock.discount_price }}</td>
+                            <td>{{ stock.discount }}%</td>
+                            <td>{{ stock.quantity }}</td>
+                            <td><i class="fas fa-cart-plus add-to-cart" data-stock-id="{{ stock.id }}"></i></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Cart Modal -->
+    <div class="cart-modal" id="cartModal">
+        <div class="cart-modal-content">
+            <h3>Корзина</h3>
+            <table id="cartTable">
+                <thead>
+                    <tr>
+                        <th>Картинка</th>
+                        <th>Название</th>
+                        <th>Цена</th>
+                        <th>Кол-во</th>
+                        <th>Сумма</th>
+                        <th>Действие</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Cart items will be dynamically added here -->
+                </tbody>
+            </table>
+            <div>
+                <button id="checkoutButton">Оформить заказ</button>
+                <span id="totalAmount">Итого: 0 руб</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
         document.addEventListener('DOMContentLoaded', () => {
             const userInfo = document.getElementById('user-info');
             const searchBox = document.querySelector('.search-box');
             const suggestionsContainer = document.createElement('div');
+            const cartButton = document.querySelector('.cart-button');
+            const cartCount = document.querySelector('.cart-count');
+            const cartModal = document.getElementById('cartModal');
+            const cartTableBody = document.querySelector('#cartTable tbody');
+            const totalAmount = document.getElementById('totalAmount');
             suggestionsContainer.className = 'autocomplete-suggestions';
             document.body.appendChild(suggestionsContainer);
 
+            async function initCart(userId = null, sessionId = null) {
+                const response = await fetch(`/cart/init`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ user_id: userId, session_id: sessionId })
+                });
+                const cart = await response.json();
+                cartCount.textContent = cart.items.length;
+            }
+
+            async function addToCart(stockId, quantity) {
+                const response = await fetch(`/cart/add`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ stock_id: stockId, quantity: quantity })
+                });
+                if (response.status === 422) {
+                    const errorData = await response.json();
+                    console.error('Ошибка добавления в корзину:', errorData);
+                } else {
+                    const cart = await response.json();
+                    cartCount.textContent = cart.items.length;
+                }
+            }
+
             function updateUserInfo() {
                 const token = localStorage.getItem('access_token');
+
                 if (token) {
                     fetch('/user-info', {
                         method: 'GET',
-                        headers: { 'Authorization': `Bearer ${token}` }
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
                     })
                     .then(response => response.json())
                     .then(data => {
@@ -141,25 +297,46 @@
                 }
             }
 
-            updateUserInfo();
+            async function fetchCartContents(userId = null, sessionId = null) {
+                const response = await fetch(`/cart/init`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ user_id: userId, session_id: sessionId })
+                });
+                const cart = await response.json();
+                return cart;
+            }
 
-            searchBox.addEventListener('input', async (event) => {
-                const query = event.target.value;
-                if (query.length > 2) {
-                    const response = await fetch(`/search-suggestions?query=${query}`);
-                    const suggestions = await response.json();
-                    showSuggestions(suggestions);
-                } else {
-                    suggestionsContainer.innerHTML = '';
-                }
-            });
+            async function displayCartContents() {
+                const cart = await fetchCartContents();
+                cartTableBody.innerHTML = '';
+                let total = 0;
 
-            searchBox.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    window.location.href = `/search?query=${encodeURIComponent(searchBox.value)}`;
-                }
-            });
+                cart.items.forEach(item => {
+                    const row = document.createElement('tr');
+                    const sum = item.stock.price * item.quantity;
+                    total += sum;
+
+                    row.innerHTML = `
+                        <td><img src="${item.stock.product.image_side_url}" alt="Картинка товара" width="50"></td>
+                        <td>${item.stock.product.model_name}</td>
+                        <td>${item.stock.price}</td>
+                        <td>
+                            <button class="decrease-quantity" data-id="${item.id}">-</button>
+                            ${item.quantity}
+                            <button class="increase-quantity" data-id="${item.id}">+</button>
+                        </td>
+                        <td>${sum}</td>
+                        <td><button class="remove-item" data-id="${item.id}">Удалить</button></td>
+                    `;
+
+                    cartTableBody.appendChild(row);
+                });
+
+                totalAmount.textContent = `Итого: ${total} руб`;
+            }
 
             function showSuggestions(suggestions) {
                 const rect = searchBox.getBoundingClientRect();
@@ -184,6 +361,47 @@
                     });
                 });
             }
+
+            searchBox.addEventListener('input', async (event) => {
+                const query = event.target.value;
+                if (query.length > 2) {
+                    const response = await fetch(`/search-suggestions?query=${query}`);
+                    const suggestions = await response.json();
+                    showSuggestions(suggestions);
+                } else {
+                    suggestionsContainer.innerHTML = '';
+                }
+            });
+
+            searchBox.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    window.location.href = `/search?query=${encodeURIComponent(searchBox.value)}`;
+                }
+            });
+
+            document.querySelectorAll('.add-to-cart').forEach(button => {
+                button.addEventListener('click', async () => {
+                    const stockId = button.dataset.stockId;
+                    await addToCart(stockId, 1);
+                });
+            });
+
+            cartButton.addEventListener('click', async (event) => {
+                event.preventDefault();
+                await displayCartContents();
+                cartModal.style.display = 'flex';
+            });
+
+            cartModal.addEventListener('click', (event) => {
+                if (event.target === cartModal) {
+                    cartModal.style.display = 'none';
+                }
+            });
+
+            // Initialize user info and cart count on page load
+            updateUserInfo();
+            initCart();
         });
 
         function handleImageError(image) {
@@ -198,165 +416,10 @@
             thumbnail.src = tempSrc;
         }
 
-        async function initCart() {
-            const token = localStorage.getItem('access_token');
-            let headers = {
-                'Content-Type': 'application/json'
-            };
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
-
-            const response = await fetch('/cart/init', {
-                method: 'POST',
-                headers: headers
-            });
-
-            if (!response.ok) {
-                console.error('Ошибка инициализации корзины');
-                return null;
-            }
-
-            const cart = await response.json();
-            return cart;
-        }
-
-        async function addToCart(stockId, quantity) {
-            const token = localStorage.getItem('access_token');
-            let headers = {
-                'Content-Type': 'application/json'
-            };
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
-
-            // Инициализируем корзину, если она еще не существует
-            const cart = await initCart();
-            if (!cart) {
-                console.error('Не удалось инициализировать корзину');
-                return;
-            }
-
-            fetch('/cart/add', {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify({ stock_id: stockId, quantity: quantity })
-            })
-            .then(response => response.json())
-            .then(data => {
-                showCenteredNotification(`Товар с ID ${stockId} добавлен в корзину`);
-                showCartPopup(data);
-            })
-            .catch(error => console.error('Error:', error));
-        }
-
-        function showCartPopup(items) {
-            const popup = document.getElementById('cart-popup');
-            const cartItemsContainer = document.getElementById('cart-items');
-            cartItemsContainer.innerHTML = '';
-
-            items.forEach(item => {
-                const itemElement = document.createElement('div');
-                itemElement.className = 'cart-item';
-                itemElement.innerHTML = `
-                    <p>Product: ${item.stock.product.model_name}</p>
-                    <p>Quantity: ${item.quantity}</p>
-                    <p>Price: ${item.stock.price}</p>
-                `;
-                cartItemsContainer.appendChild(itemElement);
-            });
-
-            popup.style.display = 'block';
-        }
-
-        function closeCartPopup() {
-            const popup = document.getElementById('cart-popup');
-            popup.style.display = 'none';
-        }
-
-        function showCenteredNotification(message) {
-            const notification = document.getElementById('centered-notification');
-            notification.textContent = message;
-            notification.style.display = 'block';
-            setTimeout(() => {
-                notification.style.display = 'none';
-            }, 3000);
+        function redirectToProfile(profileUrl, token) {
+            localStorage.setItem('profile_token', token);
+            window.location.href = profileUrl;
         }
     </script>
-</head>
-<body>
-    <header>
-        <div class="header-container">
-            <h1><a href="/">ADIK STORE</a></h1>
-            <div class="header-right">
-                <input type="text" class="search-box" placeholder="Поиск...">
-                <a href="#" class="cart-button" onclick="showCartPopup([])"><i class="fas fa-shopping-cart"></i> Корзина</a>
-                <span id="user-info"></span>
-            </div>
-        </div>
-        <nav>
-            <a href="/mens-shoes">Мужская обувь</a>
-            <a href="/womens-shoes">Женская обувь</a>
-            <a href="/kids-shoes">Детская обувь</a>
-        </nav>
-    </header>
-    <main>
-        <div class="container">
-            <div class="image-gallery">
-                <img id="mainImage" src="{{ product.image_side_url or '/static/default-image.png' }}" alt="Изображение товара" class="main-image" onerror="handleImageError(this)">
-                <div class="thumbnail-container">
-                    <img src="{{ product.image_top_url or '/static/default-image.png' }}" alt="Изображение товара сверху" class="thumbnail" onclick="swapImage(this)" onerror="handleImageError(this)">
-                    <img src="{{ product.image_34_url or '/static/default-image.png' }}" alt="Изображение товара под углом 34 градуса" class="thumbnail" onclick="swapImage(this)" onerror="handleImageError(this)">
-                </div>
-            </div>
-            <div class="product-info">
-                <h2>{{ product.model_name }}</h2>
-                <p>
-                    {% if category == 'M' %}
-                        Male
-                    {% elif category == 'F' %}
-                        Female
-                    {% elif category == 'U' %}
-                        Unisex
-                    {% elif category == 'K' %}
-                        Kids Unisex
-                    {% else %}
-                        Unknown
-                    {% endif %}
-                </p>
-                <p>Цена на официальном сайте: {{ product.price }}</p>
-                <table class="stock-table">
-                    <thead>
-                        <tr>
-                            <th>Продавец</th>
-                            <th>Размер</th>
-                            <th>Цена со скидкой</th>
-                            <th>Скидка</th>
-                            <th>Количество</th>
-                            <th>Добавить в корзину</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for stock in stocks %}
-                        <tr>
-                            <td>{{ stock.seller }}</td>
-                            <td>{{ stock.size }}</td>
-                            <td>{{ stock.discount_price }}</td>
-                            <td>{{ stock.discount }}%</td>
-                            <td>{{ stock.quantity }}</td>
-                            <td><button class="add-to-cart" data-stock-id="{{ stock.stock_id }}" onclick="addToCart({{ stock.stock_id }}, 1)">Добавить в корзину</button></td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </main>
-    <div id="cart-popup" class="popup">
-        <h2>Корзина</h2>
-        <span class="close-btn" onclick="closeCartPopup()">Закрыть</span>
-        <div id="cart-items"></div>
-    </div>
-    <div id="centered-notification" class="centered-notification"></div>
 </body>
 </html>
