@@ -4,7 +4,7 @@ import uuid
 import aiofiles
 from decimal import Decimal
 from typing import Optional, List
-from fastapi import HTTPException, status, UploadFile, File, Cookie, Response
+from fastapi import HTTPException, status, UploadFile, File, Cookie
 from jwt.exceptions import ExpiredSignatureError
 from fastapi import Header
 from jwt import decode as jwt_decode
@@ -17,17 +17,20 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
+from fastapi import Response
 from config import SECRET
 from . import schemas, crud
 from .auth import create_access_token, get_current_user_id, generate_confirmation_token, confirm_token
 from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
     get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products, \
-    get_products, paginate_products, save_image, create_cart, get_cart, add_cart_item
+    get_products, paginate_products, save_image, get_cart_items_total_quantity_by_cart_id, get_cart_items_by_cart_id
 from .database import get_db
-from .models import Users, Product, Stock, CartItem, Cart
-from .schemas import UserDetails, StockUpdateRequest, CartSchema, AddCartItemSchema
+from .models import Users, Product, Stock, Cart, CartItem
+from .schemas import UserDetails, StockUpdateRequest, AddToCartRequest, UpdateCartRequest
 from passlib.hash import bcrypt
 from app.tasks.tasks import send_email
+
+
 
 app = FastAPI()
 
@@ -40,6 +43,8 @@ static_dir = os.path.join(os.path.dirname(__file__), "static")
 # Монтируем директорию static
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+
+
 # Подключаем Jinja2 templates
 templates = Jinja2Templates(directory="app/templates")
 
@@ -49,12 +54,6 @@ SECRET_KEY = SECRET
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Custom filter to slice a list
-def slice_list(value, limit):
-    return value[:limit]
-
-# Add the filter to Jinja2 environment
-templates.env.filters['slice'] = slice_list
 
 # Маршрут для отображения формы авторизации
 @app.get("/login", response_class=HTMLResponse)
@@ -696,31 +695,120 @@ async def search_page(request: Request, query: str, db: AsyncSession = Depends(g
     return templates.TemplateResponse("search.html", {"request": request, "products": products, "query": query})
 
 
-@app.post("/cart/init", response_model=CartSchema)
-async def init_cart(user_id: int = None, session_id: str = None, db: AsyncSession = Depends(get_db)):
-    try:
-        cart = await get_cart(db, user_id=user_id, session_id=session_id)
-        if not cart:
-            cart = await create_cart(db, user_id=user_id, session_id=session_id)
-        return cart
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@app.post("/cart", response_class=JSONResponse)
+async def create_or_get_cart(request: Request, db: AsyncSession = Depends(get_db), user_id: Optional[int] = None,
+                             session_id: Optional[str] = None):
 
-@app.post("/cart/add", response_model=CartSchema)
-async def add_to_cart(item: AddCartItemSchema, user_id: int = None, session_id: str = None, db: AsyncSession = Depends(get_db)):
-    try:
-        cart = await get_cart(db, user_id=user_id, session_id=session_id)
-        if not cart:
-            cart = await create_cart(db, user_id=user_id, session_id=session_id)
+    data = await request.json()
+    user_id = data.get('user_id')
+    session_id = data.get('session_id')
 
-        stock = await db.get(Stock, item.stock_id)
-        if stock is None or stock.quantity < item.quantity:
-            raise HTTPException(status_code=400, detail="Not enough stock available")
+    if user_id:
+        cart = await db.execute(select(Cart).where(Cart.user_id == user_id))
+    else:
+        cart = await db.execute(select(Cart).where(Cart.session_id == session_id))
 
-        await add_cart_item(db, cart.id, item.stock_id, item.quantity)
-        return await get_cart(db, user_id=user_id, session_id=session_id)
-    except HTTPException as http_err:
-        raise http_err
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    cart = cart.scalars().first()
+
+    if not cart:
+        new_cart = Cart(user_id=user_id, session_id=session_id)
+        db.add(new_cart)
+        await db.commit()
+        cart = new_cart  # Ensure cart is assigned if it's newly created
+
+    total_items = await get_cart_items_total_quantity_by_cart_id(cart.id, db)
+    return JSONResponse(status_code=200, content={"cart_id": cart.id, "total_items": total_items})
+
+
+@app.post("/cart/items", response_class=JSONResponse)
+async def add_to_cart(request: AddToCartRequest, db: AsyncSession = Depends(get_db)):
+    if request.user_id:
+        cart = (await db.execute(select(Cart).where(Cart.user_id == request.user_id))).scalars().first()
+    else:
+        cart = (await db.execute(select(Cart).where(Cart.session_id == request.session_id))).scalars().first()
+
+    if not cart:
+        cart = Cart(user_id=request.user_id, session_id=request.session_id)
+        db.add(cart)
+        await db.commit()
+        await db.refresh(cart)
+
+    total_items = await get_cart_items_total_quantity_by_cart_id(cart.id, db)
+
+    # Check if CartItem with the same cart_id and stock_id exists
+    existing_cart_item = (await db.execute(
+        select(CartItem).where(CartItem.cart_id == cart.id, CartItem.stock_id == request.stock_id)
+    )).scalars().first()
+
+    if existing_cart_item:
+        # If exists, update quantity
+        existing_cart_item.quantity += request.quantity
+        total_items += request.quantity
+    else:
+        # If not exists, create a new CartItem
+        cart_item = CartItem(cart_id=cart.id, stock_id=request.stock_id, quantity=request.quantity)
+        db.add(cart_item)
+        total_items += request.quantity
+
+    await db.commit()
+
+    return JSONResponse(status_code=200, content={"total_items": total_items})
+
+
+@app.post("/cart/items/update", response_class=JSONResponse)
+async def update_cart_item(request: UpdateCartRequest, db: AsyncSession = Depends(get_db)):
+
+    cart_item = (await db.execute(select(CartItem).where(CartItem.id == request.cartitem_id))).scalars().first()
+    if not cart_item:
+        raise HTTPException(status_code=404, detail="CartItem not found")
+
+    if request.quantity == 0:
+        await db.delete(cart_item)
+    else:
+        cart_item.quantity = request.quantity
+        db.add(cart_item)
+
+    await db.commit()
+    return JSONResponse(status_code=200, content={"detail": "Quantity updated"})
+
+
+@app.post("/cart/items/details", response_class=JSONResponse)
+async def get_cart_items(request: Request, user_id: Optional[int] = None, session_id: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+    data = await request.json()
+    user_id = data.get('user_id')
+    session_id = data.get('session_id')
+    print(user_id, session_id)
+
+    if user_id:
+        cart = (await db.execute(select(Cart).where(Cart.user_id == user_id))).scalars().first()
+    else:
+        cart = (await db.execute(select(Cart).where(Cart.session_id == session_id))).scalars().first()
+
+
+    if not cart:
+        return JSONResponse(status_code=200, content={"items": [], "total": 0})
+
+    items = []
+    total = 0
+    cart_items = await get_cart_items_by_cart_id(cart.id, db)
+    for item in cart_items:
+        stock = (await db.execute(select(Stock).where(Stock.id == item.stock_id))).scalars().first()
+        product = (await db.execute(select(Product).where(Product.product_id == stock.product_id))).scalars().first()
+
+        item_data = {
+            "cartitem_id": item.id,
+            "product_name": product.model_name,
+            "quantity": item.quantity,
+            "price": stock.discount_price,
+            "total_price": item.quantity * stock.discount_price,
+            "image_url": product.image_side_url
+        }
+        items.append(item_data)
+        total += item.quantity * stock.discount_price
+
+    response_content = {"items": items, "total": total}
+    response_content = decimal_to_float(response_content)
+
+    return JSONResponse(status_code=200, content=response_content)
+
 

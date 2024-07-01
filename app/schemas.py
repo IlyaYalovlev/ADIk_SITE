@@ -131,60 +131,12 @@ class StockBase(BaseModel):
     class Config:
         from_attributes = True
 
-class ProductSchema(BaseModel):
-    product_id: str
-    brand: str
-    category: Optional[str]
-    model_name: str
-    color: Optional[str]
-    price: str
-    discount: Optional[str]
-    image_side_url: Optional[str]
-    image_top_url: Optional[str]
-    image_34_url: Optional[str]
-    gender: Optional[str]
-
-    class Config:
-        orm_mode = True
-
-class StockSchema(BaseModel):
-    id: int
-    product_id: str
-    seller_id: int
-    size: float
-    quantity: int
-    price: float
-    discount_price: float
-    created_at: Optional[datetime]
-    updated_at: Optional[datetime]
-    product: ProductSchema
-
-    class Config:
-        orm_mode = True
-
-class CartItemSchema(BaseModel):
-    id: int
-    cart_id: int
+class AddToCartRequest(BaseModel):
     stock_id: int
     quantity: int
-    created_at: Optional[datetime]
-    updated_at: Optional[datetime]
-    stock: StockSchema
+    user_id: Optional[int] = None
+    session_id: Optional[str] = None
 
-    class Config:
-        orm_mode = True
-
-class CartSchema(BaseModel):
-    id: int
-    user_id: Optional[int]
-    session_id: Optional[str]
-    created_at: Optional[datetime]
-    updated_at: Optional[datetime]
-    items: List[CartItemSchema]
-
-    class Config:
-        orm_mode = True
-
-class AddCartItemSchema(BaseModel):
-    stock_id: int
+class UpdateCartRequest(BaseModel):
+    cartitem_id: int
     quantity: int

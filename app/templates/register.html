@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Регистрация - ADIK STORE</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"/>
     <style>
         /* Стили для формы регистрации */
         main {
@@ -79,6 +80,100 @@
             color: green;
             display: none;
         }
+
+        .cart-popup {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            box-shadow: 0px 0px 15px rgba(0,0,0,0.5);
+            width: 600px;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .cart-popup-content {
+            position: relative;
+        }
+
+        .close {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            cursor: pointer;
+            font-size: 20px;
+        }
+
+        #cart-items {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .cart-item div, .cart-item img, .cart-item span, .cart-item input {
+            flex: 1;
+            text-align: center;
+        }
+
+        .cart-item img {
+            max-width: 50px;
+            max-height: 50px;
+        }
+
+        .quantity-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .quantity-controls button {
+            width: 30px;
+            height: 30px;
+            border: none;
+            background-color: #ddd;
+            cursor: pointer;
+        }
+
+        .quantity-controls span {
+            width: 50px;
+            text-align: center;
+            display: inline-block;
+        }
+
+        .cart-button .count {
+            background-color: red;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 6px;
+            font-size: 12px;
+            position: absolute;
+            top: -10px;
+            right: -10px;
+        }
+
+        .notification {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background-color: #4caf50;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1001;
+        }
+
+        nav a {
+            margin-right: 20px;
+        }
     </style>
 </head>
 <body>
@@ -86,13 +181,17 @@
         <div class="header-container">
             <h1><a href="/">ADIK STORE</a></h1>
             <div class="header-right">
-                <a href="/cart" class="cart-button"><i class="fas fa-shopping-cart"></i> Корзина</a>
-                <a href="/login" class="auth-button">Авторизация</a>
+                <input type="text" class="search-box" placeholder="Поиск...">
+                <a href="#" class="cart-button" style="position:relative;">
+                    <i class="fas fa-shopping-cart"></i> Корзина
+                    <span class="count"></span>
+                </a>
+                <span id="user-info"></span>
             </div>
         </div>
         <nav>
             <a href="/mens-shoes">Мужская обувь</a>
-            <a href="/womens-shoes">Женская обувь</а>
+            <a href="/womens-shoes">Женская обувь</a>
             <a href="/kids-shoes">Детская обувь</a>
         </nav>
     </header>
@@ -141,89 +240,299 @@
             </form>
         </section>
     </main>
+
+    <div id="cart-popup" class="cart-popup">
+        <div class="cart-popup-content">
+            <span class="close">&times;</span>
+            <h2>Корзина</h2>
+            <div id="cart-items">
+                <div class="cart-item">
+                    <div>Фото</div>
+                    <div>Название</div>
+                    <div>Кол-во</div>
+                    <div>Цена</div>
+                    <div>Сумма</div>
+                </div>
+            </div>
+            <div id="cart-total"></div>
+            <button id="checkout-button">Оформить заказ</button>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.8.1/slick.min.js"></script>
     <script>
-        document.getElementById('password').addEventListener('input', validatePassword);
-        document.getElementById('confirm_password').addEventListener('input', validatePassword);
-        document.getElementById('email').addEventListener('input', validateEmail);
-        document.getElementById('phone').addEventListener('input', validatePhone);
+        document.addEventListener('DOMContentLoaded', () => {
+            const userInfo = document.getElementById('user-info');
+            const searchBox = document.querySelector('.search-box');
+            const suggestionsContainer = document.createElement('div');
+            suggestionsContainer.className = 'autocomplete-suggestions';
+            document.body.appendChild(suggestionsContainer);
 
-        function validatePassword() {
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirm_password').value;
-            const mismatchMessage = document.getElementById('password-mismatch');
-
-            if (password !== confirmPassword) {
-                mismatchMessage.style.display = 'block';
-            } else {
-                mismatchMessage.style.display = 'none';
-            }
-        }
-
-        function validateEmail() {
-            const email = document.getElementById('email').value;
-            const emailInvalidMessage = document.getElementById('email-invalid');
-            const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-
-            if (!emailPattern.test(email)) {
-                emailInvalidMessage.style.display = 'block';
-            } else {
-                emailInvalidMessage.style.display = 'none';
-            }
-        }
-
-        function validatePhone() {
-            const phone = document.getElementById('phone').value;
-            const phoneInvalidMessage = document.getElementById('phone-invalid');
-            const phonePattern = /^\+?[1-9]\d{1,14}$/; // Примерный шаблон для международных номеров
-
-            if (!phonePattern.test(phone)) {
-                phoneInvalidMessage.style.display = 'block';
-            } else {
-                phoneInvalidMessage.style.display = 'none';
-            }
-        }
-
-        document.getElementById('register-form').addEventListener('submit', async function(event) {
-            event.preventDefault();
-            validatePassword();
-            validateEmail();
-            validatePhone();
-
-            const isFormValid = document.getElementById('password-mismatch').style.display === 'none' &&
-                document.getElementById('email-invalid').style.display === 'none' &&
-                document.getElementById('phone-invalid').style.display === 'none';
-
-            if (!isFormValid) {
-                return;
+            let userId = null;
+            let sessionId = localStorage.getItem('session_id');
+            if (!sessionId) {
+                sessionId = generateSessionId();
+                localStorage.setItem('session_id', sessionId);
             }
 
-            const formData = new FormData(event.target);
+            function generateSessionId() {
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            }
 
-            try {
-                const response = await fetch('/register', {
+            async function updateUserInfo() {
+                const token = localStorage.getItem('access_token');
+                if (token) {
+                    try {
+                        const response = await fetch('/user-info', {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                        const data = await response.json();
+                        if (data.id) {
+                            userId = data.id;
+                            const fullName = `${data.first_name} ${data.last_name}`;
+                            let profileUrl = `/profile_seller/${data.id}`;
+                            if (data.user_type === 'customer') {
+                                profileUrl = `/profile_customer/${data.id}`;
+                            }
+                            localStorage.setItem('access_token', data.access_token);
+                            userInfo.innerHTML = `<a href="#" onclick="redirectToProfile('${profileUrl}', '${data.access_token}')" class="auth-button">${fullName}</a>`;
+                        } else {
+                            userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                        }
+                    } catch (error) {
+                        console.error('Не удалось получить информацию о пользователе', error);
+                        userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                    }
+                } else {
+                    userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                }
+            }
+
+            async function createOrGetCart() {
+                const token = localStorage.getItem('access_token');
+                const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                headers['Content-Type'] = 'application/json';
+
+                const body = userId ? { user_id: userId } : { session_id: sessionId };
+
+                const response = await fetch('/cart', {
                     method: 'POST',
-                    body: formData
+                    headers: headers,
+                    body: JSON.stringify(body)
                 });
 
+                const data = await response.json();
                 if (response.ok) {
-                    document.getElementById('register-success').style.display = 'block';
+                    document.querySelector('.cart-button .count').innerText = data.total_items;
                 } else {
-                    const errorData = await response.json();
-                    if (errorData.detail === 'Email already registered') {
-                        document.getElementById('email-exists').style.display = 'block';
-                    } else if (errorData.detail === 'Phone already registered') {
-                        document.getElementById('phone-exists').style.display = 'block';
-                    } else {
-                        alert('Ошибка регистрации: ' + errorData.detail);
-                    }
+                    console.error('Failed to create or get cart:', data);
                 }
-            } catch (error) {
-                console.error('Ошибка регистрации:', error);
-                alert('Ошибка регистрации. Пожалуйста, попробуйте позже.');
             }
+
+            updateUserInfo().then(createOrGetCart);
+
+            searchBox.addEventListener('input', async (event) => {
+                const query = event.target.value;
+                if (query.length > 2) {
+                    const response = await fetch(`/search-suggestions?query=${query}`);
+                    const suggestions = await response.json();
+                    showSuggestions(suggestions);
+                } else {
+                    suggestionsContainer.innerHTML = '';
+                }
+            });
+
+            searchBox.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    window.location.href = `/search?query=${encodeURIComponent(searchBox.value)}`;
+                }
+            });
+
+            function showSuggestions(suggestions) {
+                const rect = searchBox.getBoundingClientRect();
+                suggestionsContainer.style.left = `${rect.left}px`;
+                suggestionsContainer.style.top = `${rect.bottom}px`;
+                suggestionsContainer.style.width = `${rect.width}px`;
+                if (suggestions.length > 0) {
+                    const uniqueSuggestions = [...new Set(suggestions.map(s => s.model_name))];
+                    suggestionsContainer.innerHTML = uniqueSuggestions.slice(0, 5).map(suggestion => `
+                        <div class="autocomplete-suggestion" data-value="${suggestion}">
+                            ${suggestion}
+                        </div>
+                    `).join('');
+                } else {
+                    suggestionsContainer.innerHTML = '<div class="autocomplete-suggestion">нет вариантов</div>';
+                }
+                document.querySelectorAll('.autocomplete-suggestion').forEach(suggestionElement => {
+                    suggestionElement.addEventListener('click', (event) => {
+                        searchBox.value = event.target.getAttribute('data-value');
+                        suggestionsContainer.innerHTML = '';
+                        window.location.href = `/search?query=${encodeURIComponent(searchBox.value)}`;
+                    });
+                });
+            }
+
+            const cartPopup = document.getElementById('cart-popup');
+            const closeBtn = document.querySelector('.close');
+            const cartButton = document.querySelector('.cart-button');
+            const cartItemsContainer = document.getElementById('cart-items');
+            const cartTotalContainer = document.getElementById('cart-total');
+            const checkoutButton = document.getElementById('checkout-button');
+
+            cartButton.addEventListener('click', (event) => {
+                event.preventDefault();
+                cartPopup.style.display = 'block';
+                loadCartItems();
+            });
+
+            closeBtn.addEventListener('click', () => {
+                cartPopup.style.display = 'none';
+            });
+
+            window.addEventListener('click', (event) => {
+                if (!cartPopup.contains(event.target) && event.target !== cartButton) {
+                    cartPopup.style.display = 'none';
+                }
+            });
+
+            async function loadCartItems() {
+                const token = localStorage.getItem('access_token');
+                const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                headers['Content-Type'] = 'application/json';
+
+                const body = userId ? { user_id: userId } : { session_id: sessionId };
+
+                const response = await fetch('/cart/items/details', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(body)
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    cartItemsContainer.innerHTML = '';
+                    let total = 0;
+
+                    data.items.forEach(item => {
+                        const itemElement = document.createElement('div');
+                        itemElement.className = 'cart-item';
+                        itemElement.innerHTML = `
+                            <div><img src="${item.image_url}" alt="Фото" style="width: 50px; height: 50px;"/></div>
+                            <div>${item.product_name}</div>
+                            <div class="quantity-controls">
+                                <button data-action="decrease" data-cartitem-id="${item.cartitem_id}">-</button>
+                                <span>${item.quantity}</span>
+                                <button data-action="increase" data-cartitem-id="${item.cartitem_id}">+</button>
+                            </div>
+                            <div>${item.price} $</div>
+                            <div>${item.total_price} $</div>
+                        `;
+                        cartItemsContainer.appendChild(itemElement);
+                        total += item.total_price;
+                    });
+
+                    cartTotalContainer.innerHTML = `Итого: ${total} $`;
+
+                    document.querySelectorAll('.quantity-controls button').forEach(button => {
+                        button.addEventListener('click', async () => {
+                            const action = button.dataset.action;
+                            const cartitemId = button.dataset.cartitemId;
+                            const quantitySpan = button.parentNode.querySelector('span');
+                            let newQuantity = parseInt(quantitySpan.innerText);
+
+                            if (action === 'increase') {
+                                newQuantity += 1;
+                            } else if (action === 'decrease' && newQuantity > 0) {
+                                newQuantity -= 1;
+                            }
+
+                            const body = {
+                                cartitem_id: parseInt(cartitemId),
+                                quantity: newQuantity
+                            };
+
+                            const response = await fetch('/cart/items/update', {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${token}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(body)
+                            });
+
+                            if (response.ok) {
+                                const result = await response.json();
+                                if (result.detail === 'Quantity updated') {
+                                    loadCartItems();
+                                }
+                            } else {
+                                const errorData = await response.json();
+                                showNotification(`Не удалось обновить количество: ${errorData.detail}`, 'error');
+                            }
+                        });
+                    });
+                } else {
+                    alert('Не удалось загрузить корзину');
+                }
+            }
+
+            document.querySelectorAll('.add-to-cart').forEach(button => {
+                button.addEventListener('click', async () => {
+                    const stockId = button.dataset.stockId;
+                    const token = localStorage.getItem('access_token');
+                    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                    headers['Content-Type'] = 'application/json';
+
+                    const body = {
+                        stock_id: parseInt(stockId),
+                        quantity: 1,
+                        session_id: sessionId,
+                        user_id: userId
+                    };
+
+                    const response = await fetch('/cart/items', {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify(body)
+                    });
+
+                    const data = await response.json();
+                    if (response.ok) {
+                        document.querySelector('.cart-button .count').innerText = data.total_items;
+                        showNotification('Товар добавлен в корзину');
+                    } else {
+                        showNotification(`Не удалось добавить товар в корзину: ${data.detail}`, 'error');
+                    }
+                });
+            });
+
+            function showNotification(message, type = 'success') {
+                const notification = document.createElement('div');
+                notification.className = `notification ${type}`;
+                notification.innerText = message;
+                document.body.appendChild(notification);
+
+                setTimeout(() => {
+                    notification.remove();
+                }, 3000);
+            }
+
+            checkoutButton.addEventListener('click', () => {
+                window.location.href = '/order';
+            });
         });
+
+        function redirectToProfile(profileUrl, token) {
+            localStorage.setItem('profile_token', token);
+            window.location.href = profileUrl;
+        }
     </script>
 </body>
 </html>

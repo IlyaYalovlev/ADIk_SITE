@@ -368,34 +368,12 @@ async def save_image(file: UploadFile, folder: str) -> str:
 
     return f"/static/uploads/{unique_filename}"
 
+async def get_cart_items_by_cart_id(cart_id: int, db: AsyncSession):
+    cart_items = (await db.execute(select(CartItem).where(CartItem.cart_id == cart_id))).scalars().all()
+    return cart_items
 
-async def create_cart(db, user_id: int = None, session_id: str = None):
-    cart = Cart(user_id=user_id, session_id=session_id)
-    db.add(cart)
-    await db.commit()
-    await db.refresh(cart)
-    return cart
-
-
-async def get_cart(db, user_id: int = None, session_id: str = None):
-    query = select(Cart).options(
-        joinedload(Cart.items).joinedload(CartItem.stock).joinedload(Stock.product)
+async def get_cart_items_total_quantity_by_cart_id(cart_id: int, db: AsyncSession):
+    total_quantity = await db.execute(
+        select(func.sum(CartItem.quantity)).where(CartItem.cart_id == cart_id)
     )
-
-    if user_id:
-        query = query.filter(Cart.user_id == user_id)
-    elif session_id:
-        query = query.filter(Cart.session_id == session_id)
-    else:
-        return None
-
-    result = await db.execute(query)
-    return result.scalars().first()
-
-
-async def add_cart_item(db, cart_id: int, stock_id: int, quantity: int):
-    cart_item = CartItem(cart_id=cart_id, stock_id=stock_id, quantity=quantity)
-    db.add(cart_item)
-    await db.commit()
-    await db.refresh(cart_item)
-    return cart_item
+    return total_quantity.scalar() or 0
