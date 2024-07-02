@@ -59,6 +59,7 @@ class Purchase(Base):
     stock = relationship("Stock", back_populates="purchases")
     customer = relationship("Users", foreign_keys=[customer_id])
     seller = relationship("Users", foreign_keys=[seller_id])
+    delivery_details = relationship("DeliveryDetails", uselist=False, back_populates="purchase")
 
 class Product(Base):
     __tablename__ = 'adidas_products'
@@ -97,3 +98,18 @@ class CartItem(Base):
 
     cart = relationship("Cart", back_populates="items")
     stock = relationship("Stock", back_populates="cart_items")
+
+class DeliveryDetails(Base):
+    __tablename__ = 'delivery_details'
+    id = Column(Integer, primary_key=True, index=True)
+    purchase_id = Column(Integer, ForeignKey('purchases.id'))
+    city = Column(String, nullable=False)
+    street = Column(String, nullable=False)
+    house_number = Column(String, nullable=False)
+    apartment_number = Column(String)
+    recipient_name = Column(String, nullable=False)
+    phone = Column(String, nullable=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+    purchase = relationship("Purchase", back_populates="delivery_details")

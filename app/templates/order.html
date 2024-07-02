@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Оформление заказа - ADIK STORE</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"/>
+    <style>
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: #333;
+            color: white;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .search-box {
+            padding: 5px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        .autocomplete-suggestions {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ccc;
+            z-index: 1000;
+            max-width: 200px;
+            overflow: hidden;
+            border-radius: 5px;
+        }
+
+        .autocomplete-suggestion {
+            padding: 5px;
+            cursor: pointer;
+        }
+
+        .autocomplete-suggestion:hover {
+            background-color: #f0f0f0;
+        }
+
+        .cart-popup {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            box-shadow: 0px 0px 15px rgba(0,0,0,0.5);
+            width: 600px; /* Увеличили ширину */
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .cart-popup-content {
+            position: relative;
+        }
+
+        .close {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            cursor: pointer;
+            font-size: 20px;
+        }
+
+        #cart-items {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center; /* Выравнивание по вертикали */
+            margin-bottom: 10px;
+        }
+
+        .cart-item div, .cart-item img, .cart-item span, .cart-item input {
+            flex: 1;
+            text-align: center;
+        }
+
+        .cart-item img {
+            max-width: 50px;
+            max-height: 50px;
+        }
+
+        .cart-item div:first-child {
+            flex: 0 0 60px; /* фиксированная ширина для изображения */
+        }
+
+        .cart-item div:nth-child(2) {
+            flex: 2; /* название товара занимает больше места */
+        }
+
+        .cart-item div:nth-child(3), .cart-item div:nth-child(4), .cart-item div:nth-child(5) {
+            flex: 1; /* остальные элементы */
+        }
+
+        .quantity-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .quantity-controls button {
+            width: 30px;
+            height: 30px;
+            border: none;
+            background-color: #ddd;
+            cursor: pointer;
+        }
+
+        .quantity-controls span {
+            width: 50px;
+            text-align: center;
+            display: inline-block;
+        }
+
+        .notification {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background-color: #4caf50;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1001;
+        }
+
+        .order-form {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 10px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+
+        .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+
+        .order-summary {
+            margin-top: 20px;
+        }
+    </style>
+    <script src="https://js.stripe.com/v3/"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Проверка сообщения об ошибке
+            const urlParams = new URLSearchParams(window.location.search);
+            const errorMessage = urlParams.get('error');
+            if (errorMessage) {
+                alert(`Оплата не прошла: ${errorMessage}`);
+            }
+
+            // Существующий код
+            const userInfo = document.getElementById('user-info');
+            const searchBox = document.querySelector('.search-box');
+            const suggestionsContainer = document.createElement('div');
+            suggestionsContainer.className = 'autocomplete-suggestions';
+            document.body.appendChild(suggestionsContainer);
+
+            let userId = null;
+            let sessionId = localStorage.getItem('session_id');
+            if (!sessionId) {
+                sessionId = generateSessionId();
+                localStorage.setItem('session_id', sessionId);
+            }
+
+            function generateSessionId() {
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            }
+
+            async function updateUserInfo() {
+                const token = localStorage.getItem('access_token');
+                if (token) {
+                    try {
+                        const response = await fetch('/user-info', {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                        const data = await response.json();
+                        console.log('User data:', data); // Добавьте этот лог для проверки данных пользователя
+                        if (data.id) {
+                            userId = data.id;
+                            console.log('User ID:', userId); // Добавьте этот лог для проверки userId
+                            const fullName = `${data.first_name} ${data.last_name}`;
+                            let profileUrl = `/profile_seller/${data.id}`;
+                            if (data.user_type === 'customer') {
+                                profileUrl = `/profile_customer/${data.id}`;
+                            }
+                            localStorage.setItem('access_token', data.access_token);
+                            userInfo.innerHTML = `<a href="#" onclick="redirectToProfile('${profileUrl}', '${data.access_token}')" class="auth-button">${fullName}</a>`;
+                        } else {
+                            userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                        }
+                    } catch (error) {
+                        console.error('Не удалось получить информацию о пользователе', error);
+                        userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                    }
+                } else {
+                    userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                }
+            }
+
+            async function loadCartItems() {
+                const token = localStorage.getItem('access_token');
+                const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                headers['Content-Type'] = 'application/json';
+
+                const body = { user_id: userId, session_id: sessionId };
+                console.log('Cart request body:', body); // Добавьте этот лог для проверки тела запроса
+
+                const response = await fetch('/cart/items/details', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(body)
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    const cartItemsContainer = document.getElementById('cart-items');
+                    cartItemsContainer.innerHTML = '';
+                    let total = 0;
+
+                    data.items.forEach(item => {
+                        const itemElement = document.createElement('div');
+                        itemElement.className = 'cart-item';
+                        itemElement.innerHTML = `
+                            <div><img src="${item.image_url}" alt="Фото" style="width: 50px; height: 50px;"/></div>
+                            <div>${item.product_name}</div>
+                            <div>${item.size}</div>
+                            <div class="quantity-controls">
+                                <span>${item.quantity}</span>
+                            </div>
+                            <div>${item.price} $</div>
+                            <div>${item.total_price} $</div>
+                        `;
+                        cartItemsContainer.appendChild(itemElement);
+                        total += item.total_price;
+                    });
+
+                    const cartTotalContainer = document.getElementById('cart-total');
+                    cartTotalContainer.innerHTML = `Итого: ${total} $`;
+                    window.cartTotal = total; // сохраняем общую сумму для последующего использования
+                } else {
+                    alert('Не удалось загрузить корзину');
+                }
+            }
+
+            updateUserInfo().then(() => {
+                loadCartItems();
+            });
+
+            const checkoutButton = document.getElementById('checkout-button');
+            const orderForm = document.getElementById('order-form');
+            const stripe = Stripe('pk_test_51PY3G2EHKkSjWhb5PSxdSAfbKlNJN3BKtNdAtafZeYoGMeatbCU2j4PgXqgkSy46q83X7uvQ7AA5BGT8Krk99RZA00KvbYkpqA');  // Замените на ваш публичный ключ Stripe
+
+            checkoutButton.addEventListener('click', () => {
+                const token = localStorage.getItem('access_token');
+                if (!token) {
+                    window.location.href = '/login'; // Перенаправляем на страницу авторизации
+                } else {
+                    orderForm.style.display = 'block';
+                }
+            });
+
+            orderForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                const formData = new FormData(orderForm);
+                const deliveryDetails = {
+                    city: formData.get('city'),
+                    street: formData.get('street'),
+                    house_number: formData.get('house_number'),
+                    apartment_number: formData.get('apartment_number'),
+                    recipient_name: formData.get('recipient_name'),
+                    phone: formData.get('phone'),
+                    customer_id: userId
+                };
+
+                try {
+                    const response = await fetch('/create-checkout-session', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                        },
+                        body: JSON.stringify({
+                            amount: window.cartTotal * 100, // В центах
+                            currency: 'usd',
+                            user_id: userId,
+                            delivery_details: deliveryDetails
+                        })
+                    });
+
+                    const data = await response.json();
+                    if (response.ok) {
+                        const result = await stripe.redirectToCheckout({
+                            sessionId: data.id,
+                        });
+                        if (result.error) {
+                            alert(result.error.message);
+                        }
+                    } else {
+                        alert('Ошибка при создании сессии оплаты: ' + data.detail);
+                    }
+                } catch (error) {
+                    console.error('Ошибка при создании сессии оплаты', error);
+                    alert('Ошибка при создании сессии оплаты');
+                }
+            });
+        });
+
+        function handleImageError(image) {
+            image.onerror = null;
+            image.src = '/static/default-image.png';
+        }
+
+        function redirectToProfile(profileUrl, token) {
+            localStorage.setItem('profile_token', token);
+            window.location.href = profileUrl;
+        }
+    </script>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <h1><a href="/">ADIK STORE</a></h1>
+            <div class="header-right">
+                <input type="text" class="search-box" placeholder="Поиск...">
+                <span id="user-info"></span>
+            </div>
+        </div>
+        <nav>
+            <a href="/mens-shoes">Мужская обувь</a>
+            <a href="/womens-shoes">Женская обувь</a>
+            <a href="/kids-shoes">Детская обувь</a>
+        </nav>
+    </header>
+    <main>
+        <section>
+            <h2>Оформление заказа</h2>
+            <div id="cart-items">
+                <!-- Товары из корзины -->
+            </div>
+            <div id="cart-total"></div>
+            <button id="checkout-button">Оформить заказ</button>
+
+            <form id="order-form" class="order-form">
+                <div class="form-group">
+                    <label for="city">Город</label>
+                    <input type="text" id="city" name="city" required>
+                </div>
+                <div class="form-group">
+                    <label for="street">Улица</label>
+                    <input type="text" id="street" name="street" required>
+                </div>
+                <div class="form-group">
+                    <label for="house-number">Номер дома</label>
+                    <input type="text" id="house-number" name="house_number" required>
+                </div>
+                <div class="form-group">
+                    <label for="apartment-number">Номер квартиры</label>
+                    <input type="text" id="apartment-number" name="apartment_number">
+                </div>
+                <div class="form-group">
+                    <label for="recipient-name">ФИО получателя</label>
+                    <input type="text" id="recipient-name" name="recipient_name" required>
+                </div>
+                <div class="form-group">
+                    <label for="phone">Телефон для связи</label>
+                    <input type="text" id="phone" name="phone" required>
+                </div>
+                <button type="submit">Перейти к оплате</button>
+            </form>
+        </section>
+    </main>
+</body>
+</html>

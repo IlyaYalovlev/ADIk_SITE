@@ -1,9 +1,12 @@
+import json
 import os
 import uuid
 
 import aiofiles
 from decimal import Decimal
 from typing import Optional, List
+
+import stripe
 from fastapi import HTTPException, status, UploadFile, File, Cookie
 from jwt.exceptions import ExpiredSignatureError
 from fastapi import Header
@@ -18,21 +21,26 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from fastapi import Response
-from config import SECRET
+from config import SECRET, API_KEY
 from . import schemas, crud
 from .auth import create_access_token, get_current_user_id, generate_confirmation_token, confirm_token
 from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
     get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products, \
-    get_products, paginate_products, save_image, get_cart_items_total_quantity_by_cart_id, get_cart_items_by_cart_id
+    get_products, paginate_products, save_image, get_cart_items_total_quantity_by_cart_id, get_cart_items_by_cart_id, \
+    get_product_id_by_stock_id, get_stock_item, create_purchase, create_purchase_full
 from .database import get_db
 from .models import Users, Product, Stock, Cart, CartItem
-from .schemas import UserDetails, StockUpdateRequest, AddToCartRequest, UpdateCartRequest
+from .schemas import UserDetails, StockUpdateRequest, AddToCartRequest, UpdateCartRequest, PaymentRequest, OrderDetails, \
+    CreateCheckoutSessionRequest
 from passlib.hash import bcrypt
 from app.tasks.tasks import send_email
 
 
 
+
 app = FastAPI()
+
+stripe.api_key = API_KEY
 
 # Настройка маршрута для статических файлов
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -74,7 +82,6 @@ async def login(request: Request, email: str = Form(...), password: str = Form(.
 @app.post("/change-password")
 async def change_password(request: Request, old_password: str = Form(...), new_password: str = Form(...), db: AsyncSession = Depends(get_db)):
     authorization = request.headers.get('Authorization')
-    print(authorization)
     if authorization is None or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid Authorization header")
 
@@ -211,7 +218,6 @@ async def api_profile_customer(user_id: int, db: AsyncSession = Depends(get_db),
 
         # Get customer purchases
         purchases = await get_customer_purchases(user_id, db)
-
         response_data = {
             "user": {
                 "email": user.email,
@@ -424,13 +430,6 @@ async def read_stock(stock_id: int, db: AsyncSession = Depends(get_db)):
 async def read_stock_items(skip: int = 0, limit: int = 10, db: AsyncSession = Depends(get_db)):
     return await crud.get_stock_items(db, skip=skip, limit=limit)
 
-# Создание новой покупки
-@app.post("/purchases/", response_model=schemas.Purchase)
-async def create_purchase(purchase: schemas.PurchaseCreate, db: AsyncSession = Depends(get_db)):
-    await update_customer(db, purchase)
-    await update_seller(db, purchase)
-    await update_stock(db, purchase)
-    return await crud.create_purchase(db, purchase)
 
 # Получение информации о покупке по ID
 @app.get("/purchases/{purchase_id}", response_model=schemas.Purchase)
@@ -481,7 +480,6 @@ async def product_page(request: Request, product_id: str, db: AsyncSession = Dep
             "quantity": stock.quantity,
             "stock_id": stock.id
         })
-    print(product.gender)
     return templates.TemplateResponse("product.html", {
         "request": request,
         "product": product,
@@ -570,7 +568,6 @@ async def create_product_form(
     three_quarter_view: UploadFile = File(...),
     authorization: Optional[str] = Header(None)
 ):
-    print(authorization)
     if not authorization or not authorization.startswith("Bearer "):
         return RedirectResponse(url="/login", status_code=307)
 
@@ -777,7 +774,6 @@ async def get_cart_items(request: Request, user_id: Optional[int] = None, sessio
     data = await request.json()
     user_id = data.get('user_id')
     session_id = data.get('session_id')
-    print(user_id, session_id)
 
     if user_id:
         cart = (await db.execute(select(Cart).where(Cart.user_id == user_id))).scalars().first()
@@ -801,7 +797,8 @@ async def get_cart_items(request: Request, user_id: Optional[int] = None, sessio
             "quantity": item.quantity,
             "price": stock.discount_price,
             "total_price": item.quantity * stock.discount_price,
-            "image_url": product.image_side_url
+            "image_url": product.image_side_url,
+            "size": stock.size
         }
         items.append(item_data)
         total += item.quantity * stock.discount_price
@@ -810,5 +807,68 @@ async def get_cart_items(request: Request, user_id: Optional[int] = None, sessio
     response_content = decimal_to_float(response_content)
 
     return JSONResponse(status_code=200, content=response_content)
+
+
+@app.get("/order", response_class=HTMLResponse)
+async def create_product(request: Request):
+    return templates.TemplateResponse("order.html", {"request": request})
+
+@app.post("/create-checkout-session")
+async def create_checkout_session(request: CreateCheckoutSessionRequest):
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": request.currency,
+                        "product_data": {
+                            "name": "Total Order",
+                        },
+                        "unit_amount": request.amount,
+                    },
+                    "quantity": 1,
+                },
+            ],
+            mode="payment",
+            success_url="http://127.0.0.1:8000/success?session_id={CHECKOUT_SESSION_ID}",
+            cancel_url="http://127.0.0.1:8000/cancel?error={ERROR_CODE}",
+            metadata={
+                "user_id": request.user_id,
+                "delivery_details": request.delivery_details.json()  # Сохраняем данные доставки в metadata
+            }
+        )
+        return {"id": session.id}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/success", response_class=HTMLResponse)
+async def payment_success(request: Request, session_id: str = Query(...), db: AsyncSession = Depends(get_db)):
+    try:
+        # Получение данных сессии Stripe
+        stripe_session = stripe.checkout.Session.retrieve(session_id)
+        user_id = stripe_session.metadata['user_id']
+
+        # Получение payment_intent_id
+        payment_intent_id = stripe_session.payment_intent
+
+        # Извлечение данных доставки из metadata
+        delivery_details = schemas.DeliveryDetailsCreate.parse_raw(stripe_session.metadata['delivery_details'])
+
+        # Проверка и создание заказа
+        await create_purchase_full(schemas.OrderDetails(
+            user_id=user_id,
+            payment_intent_id=payment_intent_id,
+            delivery_details=delivery_details
+        ), db)
+
+        return templates.TemplateResponse("success.html", {"request": request})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/cancel")
+async def payment_cancel(error: str = Query(None)):
+    # Логика для обработки отмены платежа
+    return RedirectResponse(url=f"/order?error={error}")
 
 

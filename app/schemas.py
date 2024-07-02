@@ -140,3 +140,47 @@ class AddToCartRequest(BaseModel):
 class UpdateCartRequest(BaseModel):
     cartitem_id: int
     quantity: int
+
+class PaymentRequest(BaseModel):
+    amount: int
+    currency: str
+    payment_method: str
+
+class DeliveryDetailsCreate(BaseModel):
+    customer_id: int
+    city: str
+    street: str
+    house_number: str
+    apartment_number: Optional[str]
+    recipient_name: str
+    phone: str
+
+    class Config:
+        orm_mode = True
+
+class DeliveryDetailsС(BaseModel):
+    city: str
+    street: str
+    house_number: str
+    apartment_number: Optional[str]
+    recipient_name: str
+    phone: str
+
+    class Config:
+        orm_mode = True
+
+class PaymentRequest(BaseModel):
+    amount: int
+    currency: str
+    payment_method: str  # Токен источника платежа
+
+class OrderDetails(BaseModel):
+    user_id: int
+    payment_intent_id: str
+    delivery_details: DeliveryDetailsCreate
+
+class CreateCheckoutSessionRequest(BaseModel):
+    amount: int
+    currency: str
+    user_id: int
+    delivery_details: DeliveryDetailsCreate

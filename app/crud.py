@@ -5,8 +5,9 @@ from email.mime.text import MIMEText
 from typing import Tuple, List, Optional
 import aiofiles
 import aiosmtplib
-from fastapi import HTTPException, UploadFile
-from sqlalchemy import func
+import stripe
+from fastapi import HTTPException, UploadFile, Depends
+from sqlalchemy import func, delete
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
@@ -16,7 +17,8 @@ from . import models, schemas
 from decimal import Decimal
 
 from .database import get_db
-from .models import Stock, Product, Users, Purchase, Cart, CartItem
+from .models import Stock, Product, Users, Purchase, Cart, CartItem, DeliveryDetails
+from .schemas import DeliveryDetailsCreate
 
 
 # User CRUD operations
@@ -82,8 +84,11 @@ async def create_purchase(db: AsyncSession, purchase: schemas.PurchaseCreate):
 
 async def update_customer(db: AsyncSession, purchase: schemas.PurchaseCreate):
     db_customer = await get_user_by_id(db, purchase.customer_id)
+
     if db_customer:
+
         db_customer.total_orders_value += Decimal(purchase.total_price)
+
         await db.commit()
         await db.refresh(db_customer)
     else:
@@ -91,10 +96,13 @@ async def update_customer(db: AsyncSession, purchase: schemas.PurchaseCreate):
 
 async def update_seller(db: AsyncSession, purchase: schemas.PurchaseCreate):
     db_seller = await get_user_by_id(db, purchase.seller_id)
+
     if db_seller:
+
         if db_seller.total_orders_value is None:
             db_seller.total_orders_value = Decimal('0.00')
         db_seller.total_orders_value += Decimal(purchase.total_price)
+
         await db.commit()
         await db.refresh(db_seller)
     else:
@@ -102,10 +110,13 @@ async def update_seller(db: AsyncSession, purchase: schemas.PurchaseCreate):
 
 async def update_stock(db: AsyncSession, purchase: schemas.PurchaseCreate):
     db_stock = await get_stock_item(db, purchase.stock_id)
+
     if db_stock:
+
         db_stock.quantity -= purchase.quantity
         if db_stock.quantity == 0:
             await db.delete(db_stock)
+
         await db.commit()
         await db.refresh(db_stock)
     else:
@@ -247,6 +258,7 @@ async def get_customer_purchases(user_id: int, db: AsyncSession):
         select(Purchase)
         .options(joinedload(Purchase.stock).joinedload(Stock.product))
         .where(Purchase.customer_id == user_id)
+        .order_by(Purchase.purchase_date.desc())
     )
     purchases = result.scalars().all()
     purchase_list = []
@@ -254,7 +266,8 @@ async def get_customer_purchases(user_id: int, db: AsyncSession):
         purchase_data = {
             "date": purchase.purchase_date.strftime("%Y-%m-%d %H:%M:%S"),  # форматирование даты и времени
             "product_name": purchase.stock.product.model_name,  # название продукта
-            "total_price": purchase.total_price  # стоимость
+            "total_price": purchase.total_price,  # стоимость
+            "quantity": purchase.quantity
         }
         purchase_list.append(purchase_data)
     return purchase_list
@@ -264,6 +277,7 @@ async def get_seller_sales(user_id: int, db: AsyncSession):
         select(Purchase)
         .options(joinedload(Purchase.stock).joinedload(Stock.product))
         .where(Purchase.seller_id == user_id)
+        .order_by(Purchase.purchase_date.desc())
     )
     sales = result.scalars().all()
     sales_list = []
@@ -338,7 +352,7 @@ async def paginate_products(products: List, page: int, per_page: int) -> Tuple[L
     filtered_products = []
     seen_models = set()
     for product in products:
-        print(product['model_name'])
+
         if product['model_name'] not in seen_models:
             filtered_products.append(product)
             seen_models.add(product['model_name'])
@@ -351,7 +365,7 @@ async def paginate_products(products: List, page: int, per_page: int) -> Tuple[L
     start = (page - 1) * per_page
     end = start + per_page
     paginated_products = filtered_products[start:end]
-    print(total_filtered)
+
     return paginated_products, total_pages
 
 
@@ -377,3 +391,90 @@ async def get_cart_items_total_quantity_by_cart_id(cart_id: int, db: AsyncSessio
         select(func.sum(CartItem.quantity)).where(CartItem.cart_id == cart_id)
     )
     return total_quantity.scalar() or 0
+
+async def get_cart_items_by_user_id(db: AsyncSession, user_id: int):
+    result = await db.execute(
+        select(CartItem).join(Cart).where(Cart.user_id == user_id)
+    )
+    return result.scalars().all()
+
+async def create_delivery_details(db: AsyncSession, delivery_details: DeliveryDetailsCreate):
+    db_delivery_details = DeliveryDetails(**delivery_details.dict())
+    db.add(db_delivery_details)
+    await db.commit()
+    await db.refresh(db_delivery_details)
+    return db_delivery_details
+
+async def delete_cart_items_by_user_id(db: AsyncSession, user_id: int):
+    cart = await db.execute(select(Cart).where(Cart.user_id == user_id))
+    cart = cart.scalars().first()
+    if cart:
+        await db.execute(delete(CartItem).where(CartItem.cart_id == cart.id))
+        await db.commit()
+
+async def create_delivery_details(db: AsyncSession, delivery_details: schemas.DeliveryDetailsС):
+    db_delivery = models.DeliveryDetails(**delivery_details.dict())
+    db.add(db_delivery)
+    await db.commit()
+    await db.refresh(db_delivery)
+    return db_delivery
+
+async def get_product_id_by_stock_id(db: AsyncSession, stock_id: int):
+    result = await db.execute(
+        select(Stock.product_id).where(Stock.id == stock_id)
+    )
+    return result.scalar()
+
+async def create_purchase_full(order_details: schemas.OrderDetails, db: AsyncSession = Depends(get_db)):
+    user_id = order_details.user_id
+    payment_intent_id = order_details.payment_intent_id
+    delivery_details = order_details.delivery_details
+
+    try:
+        # Проверка платежа
+        payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        if payment_intent.status != 'succeeded':
+            raise HTTPException(status_code=400, detail="Оплата не прошла")
+
+        # Получаем данные из корзины
+        cart_items = await get_cart_items_by_user_id(db, user_id)
+        if not cart_items:
+            raise HTTPException(status_code=400, detail="Корзина пуста")
+
+        # Создание заказа
+        for item in cart_items:
+            stock = await get_stock_item(db, item.stock_id)
+            purchase_data = schemas.PurchaseCreate(
+                customer_id=user_id,
+                product_id=stock.product_id,
+                stock_id=item.stock_id,
+                seller_id=stock.seller_id,
+                quantity=item.quantity,
+                total_price=stock.discount_price
+            )
+
+            await update_customer(db, purchase_data)
+            await update_seller(db, purchase_data)
+            await update_stock(db, purchase_data)
+            purchase = await create_purchase(db, purchase_data)
+
+            # Сохранение информации о доставке
+            delivery_data = schemas.DeliveryDetailsС(
+                purchase_id=purchase.id,
+                city=delivery_details.city,
+                street=delivery_details.street,
+                house_number=delivery_details.house_number,
+                apartment_number=delivery_details.apartment_number,
+                recipient_name=delivery_details.recipient_name,
+                phone=delivery_details.phone
+            )
+            print(delivery_data)
+            await create_delivery_details(db, delivery_data)
+
+        # Удаление элементов из корзины
+        await delete_cart_items_by_user_id(db, user_id)
+
+        return {"status": "success", "detail": "Заказ успешно создан"}
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
