@@ -236,46 +236,62 @@ async def api_profile_customer(user_id: int, db: AsyncSession = Depends(get_db),
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
+
 # Маршрут для мужской обуви
 @app.get("/mens-shoes", response_class=HTMLResponse)
 @app.get("/mens-shoes/{page}", response_class=HTMLResponse)
-async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
-    per_page = 28 # количество товаров на одной странице
-    products = await get_mens_shoes(db, page, per_page)
+async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db), min_price: float = Query(None), max_price: float = Query(None), sizes: str = Query(None), sort: str = Query(None)):
+    per_page = 28  # количество товаров на одной странице
+    size_list = list(map(float, sizes.split(','))) if sizes else []
+    products = await get_mens_shoes(db, page, per_page, min_price, max_price, size_list, sort)
     paginated_products, total_pages = await paginate_products(products, page, per_page)
     return templates.TemplateResponse("mens_shoes.html", {
         "request": request,
         "products": paginated_products,
         "page": page,
-        "total_pages": total_pages
+        "total_pages": total_pages,
+        "min_price": min_price,
+        "max_price": max_price,
+        "sizes": sizes,
+        "sort": sort
     })
 
 # Маршрут для женской обуви
 @app.get("/womens-shoes", response_class=HTMLResponse)
 @app.get("/womens-shoes/{page}", response_class=HTMLResponse)
-async def womens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
-    per_page = 28 # количество товаров на одной странице
-    products = await get_womens_shoes(db, page, per_page)
+async def womens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db), min_price: float = Query(None), max_price: float = Query(None), sizes: str = Query(None), sort: str = Query(None)):
+    per_page = 28  # количество товаров на одной странице
+    size_list = list(map(float, sizes.split(','))) if sizes else []
+    products = await get_womens_shoes(db, page, per_page, min_price, max_price, size_list, sort)
     paginated_products, total_pages = await paginate_products(products, page, per_page)
     return templates.TemplateResponse("womens_shoes.html", {
         "request": request,
         "products": paginated_products,
         "page": page,
-        "total_pages": total_pages
+        "total_pages": total_pages,
+        "min_price": min_price,
+        "max_price": max_price,
+        "sizes": sizes,
+        "sort": sort
     })
 
 # Маршрут для детской обуви
 @app.get("/kids-shoes", response_class=HTMLResponse)
 @app.get("/kids-shoes/{page}", response_class=HTMLResponse)
-async def kids_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db)):
-    per_page = 28 # количество товаров на одной странице
-    products = await get_kids_shoes(db, page, per_page)
+async def kids_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db), min_price: float = Query(None), max_price: float = Query(None), sizes: str = Query(None), sort: str = Query(None)):
+    per_page = 28  # количество товаров на одной странице
+    size_list = list(map(float, sizes.split(','))) if sizes else []
+    products = await get_kids_shoes(db, page, per_page, min_price, max_price, size_list, sort)
     paginated_products, total_pages = await paginate_products(products, page, per_page)
     return templates.TemplateResponse("kids_shoes.html", {
         "request": request,
         "products": paginated_products,
         "page": page,
-        "total_pages": total_pages
+        "total_pages": total_pages,
+        "min_price": min_price,
+        "max_price": max_price,
+        "sizes": sizes,
+        "sort": sort
     })
 
 

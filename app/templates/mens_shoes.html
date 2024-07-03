@@ -21,6 +21,33 @@
         .discount-price {
             color: red;
         }
+        .filters {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .filters input[type="number"] {
+            width: 100px;
+        }
+        .size-filter-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .size-filter-dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: white;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+        }
+        .size-filter-dropdown-content label {
+            display: block;
+            padding: 12px 16px;
+        }
+        .size-filter-dropdown:hover .size-filter-dropdown-content {
+            display: block;
+        }
         .autocomplete-suggestions {
             position: absolute;
             background-color: white;
@@ -31,17 +58,14 @@
             border-radius: 5px;
             margin-top: 5px;
         }
-
         .autocomplete-suggestion {
             padding: 5px;
             cursor: pointer;
             color: black;
         }
-
         .autocomplete-suggestion:hover {
             background-color: #f0f0f0;
         }
-
         .cart-popup {
             display: none;
             position: fixed;
@@ -51,7 +75,7 @@
             transform: translate(-50%, -50%);
             background-color: white;
             box-shadow: 0px 0px 15px rgba(0,0,0,0.5);
-            width: 600px; /* Увеличили ширину */
+            width: 600px;
             padding: 20px;
             border-radius: 10px;
         }
@@ -72,7 +96,7 @@
         .cart-item {
             display: flex;
             justify-content: space-between;
-            align-items: center; /* Выравнивание по вертикали */
+            align-items: center;
             margin-bottom: 10px;
         }
         .cart-item div, .cart-item img, .cart-item span, .cart-item input {
@@ -84,13 +108,13 @@
             max-height: 50px;
         }
         .cart-item div:first-child {
-            flex: 0 0 60px; /* фиксированная ширина для изображения */
+            flex: 0 0 60px;
         }
         .cart-item div:nth-child(2) {
-            flex: 2; /* название товара занимает больше места */
+            flex: 2;
         }
         .cart-item div:nth-child(3), .cart-item div:nth-child(4), .cart-item div:nth-child(5) {
-            flex: 1; /* остальные элементы */
+            flex: 1;
         }
         .quantity-controls {
             display: flex;
@@ -152,6 +176,45 @@
     </header>
     <main>
         <section>
+            <div class="filters">
+                <div>
+                    <label for="min-price">Цена, $:</label>
+                    <input type="number" id="min-price" min="0" max="500" placeholder="от">
+                    <input type="number" id="max-price" min="0" max="500" placeholder="до">
+                </div>
+                <div class="size-filter-dropdown">
+                    <button class="dropbtn">Размер</button>
+                    <div class="size-filter-dropdown-content">
+                        <label><input type="checkbox" value="6"> 6</label>
+                        <label><input type="checkbox" value="6.5"> 6.5</label>
+                        <label><input type="checkbox" value="7"> 7</label>
+                        <label><input type="checkbox" value="7.5"> 7.5</label>
+                        <label><input type="checkbox" value="8"> 8</label>
+                        <label><input type="checkbox" value="8.5"> 8.5</label>
+                        <label><input type="checkbox" value="9"> 9</label>
+                        <label><input type="checkbox" value="9.5"> 9.5</label>
+                        <label><input type="checkbox" value="10"> 10</label>
+                        <label><input type="checkbox" value="10.5"> 10.5</label>
+                        <label><input type="checkbox" value="11"> 11</label>
+                        <label><input type="checkbox" value="11.5"> 11.5</label>
+                        <label><input type="checkbox" value="12"> 12</label>
+                        <label><input type="checkbox" value="12.5"> 12.5</label>
+                        <label><input type="checkbox" value="13"> 13</label>
+                        <label><input type="checkbox" value="13.5"> 13.5</label>
+                        <label><input type="checkbox" value="14"> 14</label>
+                    </div>
+                </div>
+                <div>
+                    <label for="sort">Сортировка:</label>
+                    <select id="sort">
+                        <option value="price-asc">Цена по возрастанию</option>
+                        <option value="price-desc">Цена по убыванию</option>
+                        <option value="discount-desc">По размеру скидки</option>
+                        <option value="newest">Новинки</option>
+                    </select>
+                </div>
+                <button id="apply-filters">Применить</button>
+            </div>
             <div class="products">
                 {% for product in products %}
                 <div class="product" data-product-id="{{ product.product_id }}">
@@ -179,7 +242,7 @@
             <!-- Пагинация -->
             <div class="pagination">
                 {% if page > 1 %}
-                <a href="/mens-shoes/{{ page-1 }}" class="page-link">&laquo; Предыдущая</a>
+                <a href="#" class="page-link" data-page="{{ page-1 }}">&laquo; Предыдущая</a>
                 {% endif %}
                 {% set start_page = (page - 2) | default(1) | int %}
                 {% set end_page = (page + 2) | default(total_pages) | int %}
@@ -190,10 +253,10 @@
                 {% set end_page = total_pages %}
                 {% endif %}
                 {% for p in range(start_page, end_page + 1) %}
-                <a href="/mens-shoes/{{ p }}" class="page-link {% if p == page %}active{% endif %}">{{ p }}</a>
+                <a href="#" class="page-link {% if p == page %}active{% endif %}" data-page="{{ p }}">{{ p }}</a>
                 {% endfor %}
                 {% if page < total_pages %}
-                <a href="/mens-shoes/{{ page+1 }}" class="page-link">Следующая &raquo;</a>
+                <a href="#" class="page-link" data-page="{{ page+1 }}">Следующая &raquo;</a>
                 {% endif %}
             </div>
         </section>
@@ -485,6 +548,73 @@
 
             checkoutButton.addEventListener('click', () => {
                 window.location.href = '/order';
+            });
+
+            // Фильтрация и сортировка
+            document.getElementById('apply-filters').addEventListener('click', () => {
+                const minPrice = document.getElementById('min-price').value;
+                const maxPrice = document.getElementById('max-price').value;
+                const selectedSizes = Array.from(document.querySelectorAll('.size-filter-dropdown-content input:checked')).map(input => input.value);
+                const sort = document.getElementById('sort').value;
+
+                const filters = {
+                    minPrice: minPrice,
+                    maxPrice: maxPrice,
+                    sizes: selectedSizes,
+                    sort: sort
+                };
+
+                localStorage.setItem('filters', JSON.stringify(filters));
+
+                let url = '/mens-shoes?page=1&';
+                if (minPrice) url += `min_price=${minPrice}&`;
+                if (maxPrice) url += `max_price=${maxPrice}&`;
+                if (selectedSizes.length > 0) url += `sizes=${selectedSizes.join(',')}&`;
+                if (sort) url += `sort=${sort}&`;
+
+                window.location.href = url.slice(0, -1); // Убираем последний символ '&'
+            });
+
+            // Установка значений фильтров из URL-параметров и localStorage
+            const urlParams = new URLSearchParams(window.location.search);
+            document.getElementById('min-price').value = urlParams.get('min_price') || '';
+            document.getElementById('max-price').value = urlParams.get('max_price') || '';
+            const sizes = urlParams.get('sizes') ? urlParams.get('sizes').split(',') : [];
+            sizes.forEach(size => {
+                const sizeInput = document.querySelector(`.size-filter-dropdown-content input[value="${size}"]`);
+                if (sizeInput) {
+                    sizeInput.checked = true;
+                }
+            });
+            document.getElementById('sort').value = urlParams.get('sort') || '';
+
+            const filters = JSON.parse(localStorage.getItem('filters'));
+            if (filters) {
+                document.getElementById('min-price').value = filters.minPrice || '';
+                document.getElementById('max-price').value = filters.maxPrice || '';
+                filters.sizes.forEach(size => {
+                    const sizeInput = document.querySelector(`.size-filter-dropdown-content input[value="${size}"]`);
+                    if (sizeInput) {
+                        sizeInput.checked = true;
+                    }
+                });
+                document.getElementById('sort').value = filters.sort || '';
+            }
+
+            document.querySelectorAll('.page-link').forEach(link => {
+                link.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    const page = link.dataset.page;
+                    const filters = JSON.parse(localStorage.getItem('filters'));
+                    let url = `/mens-shoes?page=${page}&`;
+                    if (filters) {
+                        if (filters.minPrice) url += `min_price=${filters.minPrice}&`;
+                        if (filters.maxPrice) url += `max_price=${filters.maxPrice}&`;
+                        if (filters.sizes.length > 0) url += `sizes=${filters.sizes.join(',')}&`;
+                        if (filters.sort) url += `sort=${filters.sort}&`;
+                    }
+                    window.location.href = url.slice(0, -1);
+                });
             });
         });
 

@@ -152,13 +152,27 @@ async def get_popular_products(db: AsyncSession):
     paginated_products = filtered_products[:28]
     return paginated_products
 
-async def get_mens_shoes(db: AsyncSession, page: int, per_page: int):
-    result = await db.execute(
-        select(Stock)
-        .join(Product)
-        .options(selectinload(Stock.product))
-        .filter(Product.gender.in_(['M', 'U']))
-    )
+
+async def get_mens_shoes(db: AsyncSession, page: int, per_page: int, min_price: float = None, max_price: float = None, sizes: List[float] = None, sort: str = None):
+    query = select(Stock).join(Product).options(selectinload(Stock.product)).filter(Product.gender.in_(['M', 'U']))
+
+    if min_price is not None:
+        query = query.filter(Stock.price >= min_price)
+    if max_price is not None:
+        query = query.filter(Stock.price <= max_price)
+    if sizes:
+        query = query.filter(Stock.size.in_(sizes))
+
+    if sort == 'price-asc':
+        query = query.order_by(Stock.price.asc())
+    elif sort == 'price-desc':
+        query = query.order_by(Stock.price.desc())
+    elif sort == 'discount-desc':
+        query = query.order_by((Stock.price - Stock.discount_price).desc())
+    elif sort == 'newest':
+        query = query.order_by(Stock.created_at.desc())
+
+    result = await db.execute(query)
     stocks = result.scalars().all()
     total_query = await db.execute(
         select(func.count())
@@ -181,13 +195,26 @@ async def get_mens_shoes(db: AsyncSession, page: int, per_page: int):
         products.append(product_data)
     return products
 
-async def get_kids_shoes(db: AsyncSession, page: int, per_page: int):
-    result = await db.execute(
-        select(Stock)
-        .join(Product)
-        .options(selectinload(Stock.product))
-        .filter(Product.gender.in_(['K']))
-    )
+async def get_kids_shoes(db: AsyncSession, page: int, per_page: int, min_price: float = None, max_price: float = None, sizes: List[float] = None, sort: str = None):
+    query = select(Stock).join(Product).options(selectinload(Stock.product)).filter(Product.gender.in_(['K']))
+
+    if min_price is not None:
+        query = query.filter(Stock.price >= min_price)
+    if max_price is not None:
+        query = query.filter(Stock.price <= max_price)
+    if sizes:
+        query = query.filter(Stock.size.in_(sizes))
+
+    if sort == 'price-asc':
+        query = query.order_by(Stock.price.asc())
+    elif sort == 'price-desc':
+        query = query.order_by(Stock.price.desc())
+    elif sort == 'discount-desc':
+        query = query.order_by((Stock.price - Stock.discount_price).desc())
+    elif sort == 'newest':
+        query = query.order_by(Stock.created_at.desc())
+
+    result = await db.execute(query)
     stocks = result.scalars().all()
     total_query = await db.execute(
         select(func.count())
@@ -210,13 +237,26 @@ async def get_kids_shoes(db: AsyncSession, page: int, per_page: int):
         products.append(product_data)
     return products
 
-async def get_womens_shoes(db: AsyncSession, page: int, per_page: int):
-    result = await db.execute(
-        select(Stock)
-        .join(Product)
-        .options(selectinload(Stock.product))
-        .filter(Product.gender.in_(['W', 'U']))
-    )
+async def get_womens_shoes(db: AsyncSession, page: int, per_page: int, min_price: float = None, max_price: float = None, sizes: List[float] = None, sort: str = None):
+    query = select(Stock).join(Product).options(selectinload(Stock.product)).filter(Product.gender.in_(['W', 'U']))
+
+    if min_price is not None:
+        query = query.filter(Stock.price >= min_price)
+    if max_price is not None:
+        query = query.filter(Stock.price <= max_price)
+    if sizes:
+        query = query.filter(Stock.size.in_(sizes))
+
+    if sort == 'price-asc':
+        query = query.order_by(Stock.price.asc())
+    elif sort == 'price-desc':
+        query = query.order_by(Stock.price.desc())
+    elif sort == 'discount-desc':
+        query = query.order_by((Stock.price - Stock.discount_price).desc())
+    elif sort == 'newest':
+        query = query.order_by(Stock.created_at.desc())
+
+    result = await db.execute(query)
     stocks = result.scalars().all()
     total_query = await db.execute(
         select(func.count())
@@ -352,7 +392,6 @@ async def paginate_products(products: List, page: int, per_page: int) -> Tuple[L
     filtered_products = []
     seen_models = set()
     for product in products:
-
         if product['model_name'] not in seen_models:
             filtered_products.append(product)
             seen_models.add(product['model_name'])
