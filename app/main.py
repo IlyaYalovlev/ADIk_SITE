@@ -15,6 +15,7 @@ from fastapi import FastAPI, Depends, HTTPException, Form, Request,  Query
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from sqlalchemy.sql.functions import user
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -877,7 +878,10 @@ async def payment_success(request: Request, session_id: str = Query(...), db: As
             payment_intent_id=payment_intent_id,
             delivery_details=delivery_details
         ), db)
-
+        user = get_user_by_id(db, user_id)
+        email = user.email
+        msg_text = f"Ваш заказ успешно офрмлен, пордробную информацию вы сможете найти в личном кабинете. \n В блажйшее время с вами свяжется оператор для уточнинеия деталей доставки.\n\n\n\n Всегда с вами Adik_Store!"
+        await send_email.delay(email, msg_text)
         return templates.TemplateResponse("success.html", {"request": request})
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

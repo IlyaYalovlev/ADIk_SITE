@@ -491,7 +491,6 @@ async def create_purchase_full(order_details: schemas.OrderDetails, db: AsyncSes
                 quantity=item.quantity,
                 total_price=stock.discount_price
             )
-
             await update_customer(db, purchase_data)
             await update_seller(db, purchase_data)
             await update_stock(db, purchase_data)
