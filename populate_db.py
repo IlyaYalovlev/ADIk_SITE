@@ -6,6 +6,7 @@ import aiosmtplib
 from dotenv import load_dotenv
 from fastapi import FastAPI, BackgroundTasks
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
+from passlib.handlers.bcrypt import bcrypt
 from pydantic import BaseModel, EmailStr
 from decimal import Decimal
 from faker import Faker
@@ -164,6 +165,24 @@ async def check_passy():
         else:
             print("User not found")
 
+async def create_user():
+    hashed_password = bcrypt.hash('admin')
+    db_user = Users(
+        email='admin@administrator',
+        phone='00000000',
+        password_hash=hashed_password,
+        user_type='admin',
+        first_name='admin',
+        last_name='admin',
+        is_active=True
+    )
+    async with get_db_session() as session:
+        session.add(db_user)
+        session.commit()
+        session.refresh(db_user)
+
+
+
 if __name__ == "__main__":
     #asyncio.run(send_email('yak9os@gmail.com', 'соси жопу'))
     #asyncio.run(create_random_sellers_and_stock())
@@ -171,3 +190,4 @@ if __name__ == "__main__":
     #asyncio.run(add_random_passwords())
     #asyncio.run(check_passy())
     #asyncio.run(check_stock_items())
+    asyncio.run(create_user())

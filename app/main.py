@@ -1,10 +1,11 @@
 import json
 import os
 import uuid
+from datetime import datetime
 
 import aiofiles
 from decimal import Decimal
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 import stripe
 from fastapi import HTTPException, status, UploadFile, File, Cookie
@@ -28,11 +29,11 @@ from .auth import create_access_token, get_current_user_id, generate_confirmatio
 from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
     get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products, \
     get_products, paginate_products, save_image, get_cart_items_total_quantity_by_cart_id, get_cart_items_by_cart_id, \
-    get_product_id_by_stock_id, get_stock_item, create_purchase, create_purchase_full
+    get_product_id_by_stock_id, get_stock_item, create_purchase, create_purchase_full, get_purchase
 from .database import get_db
-from .models import Users, Product, Stock, Cart, CartItem
+from .models import Users, Product, Stock, Cart, CartItem, Purchase
 from .schemas import UserDetails, StockUpdateRequest, AddToCartRequest, UpdateCartRequest, PaymentRequest, OrderDetails, \
-    CreateCheckoutSessionRequest
+    CreateCheckoutSessionRequest, ProductQuantityUpdateSchema, ProductActivationSchema, SaleUpdateSchema
 from passlib.hash import bcrypt
 from app.tasks.tasks import send_email
 
@@ -58,10 +59,10 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
 
-# Конфигурация для fastapi-login
+
 SECRET_KEY = SECRET
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
 
 
 # Маршрут для отображения формы авторизации
@@ -73,9 +74,12 @@ async def login_form(request: Request):
 @app.post("/login")
 async def login(request: Request, email: str = Form(...), password: str = Form(...), db: AsyncSession = Depends(get_db)):
     user = await get_user_by_email(db, email)
-    if user.check_password(password) and user.is_active != False:
+    if user and user.check_password(password) and user.is_active and user.user_type == 'admin':
         access_token = create_access_token(data={"sub": str(user.id)})
-        return JSONResponse(status_code=200, content={"access_token": access_token})
+        return JSONResponse(status_code=200, content={"access_token": access_token, "redirect_url": "/admin"})
+    elif user and user.check_password(password) and user.is_active:
+        access_token = create_access_token(data={"sub": str(user.id)})
+        return JSONResponse(status_code=200, content={"access_token": access_token, "redirect_url": "/"})
     else:
         return JSONResponse(status_code=401, content={"error": "Неверные учетные данные"})
 
@@ -149,6 +153,8 @@ def decimal_to_float(data):
         return [decimal_to_float(v) for v in data]
     elif isinstance(data, Decimal):
         return float(data)
+    elif isinstance(data, datetime):
+        return data.isoformat()
     else:
         return data
 
@@ -156,7 +162,6 @@ def decimal_to_float(data):
 @app.get("/profile_seller/{user_id}", response_class=HTMLResponse)
 async def profile_seller(user_id: int, request: Request):
     return templates.TemplateResponse("profile_seller.html", {"request": request})
-
 @app.get("/api/profile_seller/{user_id}", response_class=JSONResponse)
 async def api_profile_seller(user_id: int, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -176,7 +181,7 @@ async def api_profile_seller(user_id: int, db: AsyncSession = Depends(get_db), a
         # Get seller sales and products
         sales = await get_seller_sales(user_id, db)
         products = await get_seller_products(user_id, db)
-
+        print(*products)
         response_data = {
             "user": {
                 "email": user.email,
@@ -194,6 +199,35 @@ async def api_profile_seller(user_id: int, db: AsyncSession = Depends(get_db), a
         return JSONResponse(content=response_data)
     except ExpiredSignatureError:
         return JSONResponse(status_code=401, content={"detail": "JWT token has expired"})
+
+@app.post("/update-sale", response_class=JSONResponse)
+async def update_sale(data: SaleUpdateSchema, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+
+    token = authorization.split(" ")[1]
+    current_user_id = get_current_user_id(token)
+
+    if current_user_id is None:
+        raise HTTPException(status_code=403, detail="Unauthorized access")
+
+    sale = await get_purchase(db, data.sale_id)
+    if sale is None:
+        raise HTTPException(status_code=404, detail="Sale not found")
+
+    status_map = {
+        "paid": "Оплачен",
+        "in_progress": "Получен",
+        "shipping": "Отправлен",
+        "delivered": "Доставлен"
+    }
+
+    sale.status = status_map.get(data.status, data.status)
+    sale.tracking_number = data.tracking_number if data.tracking_number != "undefined" else None
+    db.add(sale)
+    await db.commit()
+
+    return JSONResponse(status_code=200, content={"detail": "Sale updated successfully"})
 
 
 # Обновление маршрута для профиля покупателя
@@ -388,7 +422,7 @@ async def register_user(
     token = generate_confirmation_token(email)
     confirm_url = f"http://127.0.0.1:8000/confirm/{token}"
     msg_text = f"Пройдите по следующей ссылке для подтверждения вашей почты: {confirm_url}"
-    await send_email.delay(email, msg_text)
+    send_email.delay(email, msg_text)
 
     return {"message": "Перейдите в почту для завершения регистрации"}
 
@@ -615,8 +649,8 @@ async def create_product_form(
     new_product = Product(
         brand=collection,
         model_name=model_name,
-        price=str(recommended_price-1),
-        discount=str(recommended_price-1),
+        price=str(recommended_price),
+        discount=str(recommended_price),
         image_side_url=side_view_url,
         image_top_url=top_view_url,
         image_34_url=three_quarter_view_url,
@@ -878,10 +912,11 @@ async def payment_success(request: Request, session_id: str = Query(...), db: As
             payment_intent_id=payment_intent_id,
             delivery_details=delivery_details
         ), db)
-        user = get_user_by_id(db, user_id)
+        user_id = int(user_id)
+        user = await get_user_by_id(db, int(user_id))
         email = user.email
         msg_text = f"Ваш заказ успешно офрмлен, пордробную информацию вы сможете найти в личном кабинете. \n В блажйшее время с вами свяжется оператор для уточнинеия деталей доставки.\n\n\n\n Всегда с вами Adik_Store!"
-        await send_email.delay(email, msg_text)
+        send_email.delay(email, msg_text)
         return templates.TemplateResponse("success.html", {"request": request})
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -892,3 +927,131 @@ async def payment_cancel(error: str = Query(None)):
     return RedirectResponse(url=f"/order?error={error}")
 
 
+@app.get("/admin", response_class=HTMLResponse)
+async def admin(request: Request):
+    return templates.TemplateResponse("admin.html", {"request": request})
+
+@app.get("/api/admin", response_class=JSONResponse)
+async def api_admin(db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+
+    token = authorization.split(" ")[1]
+    current_user_id = get_current_user_id(token)
+
+
+
+    if current_user_id is None:
+        raise HTTPException(status_code=403, detail="Unauthorized access")
+
+    user = await db.execute(select(Users).where(Users.id == current_user_id))
+    user = user.scalar_one_or_none()
+
+    if user is None or user.user_type != 'admin':
+        raise HTTPException(status_code=403, detail="Unauthorized access")
+
+    all_products_query = await db.execute(
+        select(Stock).options(joinedload(Stock.product), joinedload(Stock.seller))
+    )
+    all_products = all_products_query.scalars().all()
+
+    new_products_query = await db.execute(
+        select(Product).where(Product.is_active == False)
+    )
+    new_products = new_products_query.scalars().all()
+
+    transactions_query = await db.execute(select(Purchase))
+    transactions = transactions_query.scalars().all()
+    response_data = {
+        "all_products": [
+            {
+                "stock_id": stock.id,
+                "model_name": stock.product.model_name,
+                "seller_email": stock.seller.email,
+                "price": stock.price,
+                "discount_price": stock.discount_price,
+                "quantity": stock.quantity,
+            }
+            for stock in all_products
+        ],
+        "new_products": [
+            {
+                "product_id": product.product_id,
+                "model_name": product.model_name,
+                "image_side_url": product.image_side_url,
+                "image_top_url": product.image_top_url,
+                "image_34_url": product.image_34_url,
+                "price": product.price,
+            }
+            for product in new_products
+        ],
+        "transactions": [
+            {
+                "customer_id": purchase.customer_id,
+                "seller_id": purchase.seller_id,
+                "purchase_date": purchase.purchase_date,
+                "status": purchase.status,
+                "tracking_number": purchase.tracking_number,
+            }
+            for purchase in transactions
+        ]
+    }
+    response_data = decimal_to_float(response_data)
+    return JSONResponse(content=response_data)
+
+@app.post("/update-stock", response_class=JSONResponse)
+async def update_stock(update_data: ProductQuantityUpdateSchema, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+
+    token = authorization.split(" ")[1]
+    current_user_id = get_current_user_id(token)
+
+    if current_user_id is None:
+        raise HTTPException(status_code=403, detail="Unauthorized access")
+
+    user = await db.execute(select(Users).where(Users.id == current_user_id))
+    user = user.scalar_one_or_none()
+
+    if user is None or user.user_type != 'admin':
+        raise HTTPException(status_code=403, detail="Unauthorized access")
+
+    stock = await db.execute(select(Stock).where(Stock.id == update_data.stock_id))
+    stock = stock.scalar_one_or_none()
+    if stock:
+        stock.quantity = update_data.quantity
+        db.add(stock)
+        await db.commit()
+        return JSONResponse(status_code=200, content={"detail": "Stock updated successfully"})
+    else:
+        raise HTTPException(status_code=404, detail="Stock not found")
+
+@app.post("/activate-product", response_class=JSONResponse)
+async def activate_product(data: ProductActivationSchema, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+
+    token = authorization.split(" ")[1]
+    current_user_id = get_current_user_id(token)
+
+    if current_user_id is None:
+        raise HTTPException(status_code=403, detail="Unauthorized access")
+
+    user = await db.execute(select(Users).where(Users.id == current_user_id))
+    user = user.scalar_one_or_none()
+
+    if user is None or user.user_type != 'admin':
+        raise HTTPException(status_code=403, detail="Unauthorized access")
+
+    product = await db.execute(select(Product).where(Product.product_id == data.product_id))
+    product = product.scalar_one_or_none()
+
+    if data.is_active:
+        product.is_active = data.is_active
+        db.add(product)
+        await db.commit()
+    else:
+        await db.delete(product)
+        await db.commit()
+
+    return JSONResponse(status_code=200, content={"detail": "Product activation status updated successfully"})

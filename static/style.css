@@ -356,7 +356,7 @@ nav a.active, nav a:hover {
 }
 
 .products-table-container {
-    max-width: 800px;
+    max-width: 1000px;
     width: 100%;
     overflow-x: auto;
     padding: 20px;

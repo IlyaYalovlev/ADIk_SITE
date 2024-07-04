@@ -17,9 +17,9 @@ class Users(Base):
     last_name = Column(String, index=True)
     total_orders_value = Column(Numeric(10, 2), default=0.0)
     created_at = Column(TIMESTAMP, server_default=func.now())
-    is_active = Column(Boolean, default=False)  # Новое поле для активации пользователя
+    is_active = Column(Boolean, default=False)
 
-    # Связь с таблицей Stock
+
     stocks = relationship("Stock", back_populates="seller", cascade="all, delete-orphan")
 
     def set_password(self, password):
@@ -55,6 +55,8 @@ class Purchase(Base):
     quantity = Column(Integer)
     total_price = Column(Numeric(10, 2))
     purchase_date = Column(TIMESTAMP, server_default=func.now())
+    status = Column(String, default="paid")
+    tracking_number = Column(String)
 
     stock = relationship("Stock", back_populates="purchases")
     customer = relationship("Users", foreign_keys=[customer_id])
@@ -63,7 +65,7 @@ class Purchase(Base):
 
 class Product(Base):
     __tablename__ = 'adidas_products'
-    product_id = Column(String, primary_key=True, index=True,  default=lambda: str(uuid.uuid4()))
+    product_id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     brand = Column(String)
     category = Column(String)
     model_name = Column(String)
@@ -74,6 +76,7 @@ class Product(Base):
     image_top_url = Column(String)
     image_34_url = Column(String)
     gender = Column(String)
+    is_active = Column(Boolean, default=False)
 
     stocks = relationship('Stock', back_populates='product')
 

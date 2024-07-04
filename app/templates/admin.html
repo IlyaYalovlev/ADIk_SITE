@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Админ панель - ADIK STORE</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        .autocomplete-suggestions {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ccc;
+            z-index: 1000;
+            max-width: 200px;
+            overflow: hidden;
+            border-radius: 5px;
+            margin-top: 5px;
+        }
+
+        .autocomplete-suggestion {
+            padding: 5px;
+            cursor: pointer;
+            color: black;
+        }
+
+        .autocomplete-suggestion:hover {
+            background-color: #f0f0f0;
+        }
+
+        .cart-popup {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            box-shadow: 0px 0px 15px rgba(0,0,0,0.5);
+            width: 600px; /* Увеличили ширину */
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .cart-popup-content {
+            position: relative;
+        }
+        .close {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            cursor: pointer;
+            font-size: 20px;
+        }
+        #cart-items {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center; /* Выравнивание по вертикали */
+            margin-bottom: 10px;
+        }
+        .cart-item div, .cart-item img, .cart-item span, .cart-item input {
+            flex: 1;
+            text-align: center;
+        }
+        .cart-item img {
+            max-width: 50px;
+            max-height: 50px;
+        }
+        .cart-item div:first-child {
+            flex: 0 0 60px; /* фиксированная ширина для изображения */
+        }
+        .cart-item div:nth-child(2) {
+            flex: 2; /* название товара занимает больше места */
+        }
+        .cart-item div:nth-child(3), .cart-item div:nth-child(4), .cart-item div:nth-child(5) {
+            flex: 1; /* остальные элементы */
+        }
+        .quantity-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .quantity-controls button {
+            width: 30px;
+            height: 30px;
+            border: none;
+            background-color: #ddd;
+            cursor: pointer;
+        }
+        .quantity-controls span {
+            width: 50px;
+            text-align: center;
+            display: inline-block;
+        }
+        .cart-button .count {
+            background-color: red;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 6px;
+            font-size: 12px;
+            position: absolute;
+            top: -10px;
+            right: -10px;
+        }
+        .notification {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background-color: #4caf50;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1001;
+        }
+
+        .approve-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100px;
+            margin-right: 5px; /* Добавляем отступ справа */
+        }
+
+        .reject-btn {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100px;
+        }
+
+        .products-table, .transactions-table {
+            width: 100%; /* Увеличиваем ширину таблицы */
+        }
+
+        .products-table th, .transactions-table th, .products-table td, .transactions-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .products-table th:last-child, .products-table td:last-child {
+            width: 150px; /* Добавляем ширину для последней колонки */
+        }
+
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        .products-table-container {
+            width: 100%;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <h1><a href="/">ADIK STORE</a></h1>
+            <div class="header-right">
+                <span id="user-info"></span>
+            </div>
+        </div>
+        <nav>
+            <a href="#all-products" class="tab-button" onclick="openTab(event, 'all-products')">Все товары</a>
+            <a href="#new-products" class="tab-button" onclick="openTab(event, 'new-products')">Новые продукты</a>
+            <a href="#transactions" class="tab-button" onclick="openTab(event, 'transactions')">Сделки</a>
+        </nav>
+    </header>
+    <main>
+        <div id="all-products" class="tab-content active">
+            <h2>Все товары</h2>
+            <div class="products-table-container">
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>Модель</th>
+                            <th>Продавец</th>
+                            <th>Цена</th>
+                            <th>Скидочная цена</th>
+                            <th>Количество</th>
+                            <th>Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody id="products-list">
+                        <!-- Список товаров -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div id="new-products" class="tab-content">
+            <h2>Новые продукты</h2>
+            <div class="products-table-container">
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>Модель</th>
+                            <th>Изображение сбоку</th>
+                            <th>Изображение сверху</th>
+                            <th>Изображение 34 градуса</th>
+                            <th>Цена</th>
+                            <th>Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody id="new-products-list">
+                        <!-- Новые продукты -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div id="transactions" class="tab-content">
+            <h2>Сделки</h2>
+            <div class="products-table-container">
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>ID покупателя</th>
+                            <th>ID продавца</th>
+                            <th>Дата покупки</th>
+                            <th>Статус</th>
+                            <th>Номер отслеживания</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactions-list">
+                        <!-- Сделки -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+    <button id="logout-button">Выйти</button>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const userInfo = document.getElementById('user-info');
+            const suggestionsContainer = document.createElement('div');
+            suggestionsContainer.className = 'autocomplete-suggestions';
+            document.body.appendChild(suggestionsContainer);
+
+            const token = localStorage.getItem('profile_token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            fetch('/api/admin', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => {
+                if (response.status === 401 || response.status === 403) {
+                    window.location.href = '/';
+                    return null;
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data) {
+                    const productsList = document.getElementById('products-list');
+                    productsList.innerHTML = data.all_products.map(product => `
+                        <tr data-stock-id="${product.stock_id}">
+                            <td>${product.model_name}</td>
+                            <td>${product.seller_email}</td>
+                            <td contenteditable="true" data-field="price">${product.price}</td>
+                            <td contenteditable="true" data-field="discount_price">${product.discount_price}</td>
+                            <td contenteditable="true" data-field="quantity">${product.quantity}</td>
+                            <td><button class="apply-btn" onclick="applyChanges(event, ${product.stock_id})">Применить</button></td>
+                        </tr>
+                    `).join('');
+
+                    const newProductsList = document.getElementById('new-products-list');
+                    newProductsList.innerHTML = data.new_products.map(product => `
+                        <tr data-product-id="${product.product_id}">
+                            <td>${product.model_name}</td>
+                            <td><img src="${product.image_side_url}" alt="Side Image" style="width: 50px;" onerror="handleImageError(this)"></td>
+                            <td><img src="${product.image_top_url}" alt="Top Image" style="width: 50px;" onerror="handleImageError(this)"></td>
+                            <td><img src="${product.image_34_url}" alt="34 Degree Image" style="width: 50px;" onerror="handleImageError(this)"></td>
+                            <td>${product.price}</td>
+                            <td>
+                                <button class="approve-btn" onclick="applyActivationChanges(event, '${product.product_id}', true)">Одобрить</button>
+                                <button class="reject-btn" onclick="applyActivationChanges(event, '${product.product_id}', false)">Отклонить</button>
+                            </td>
+                        </tr>
+                    `).join('');
+
+                    const transactionsList = document.getElementById('transactions-list');
+                    transactionsList.innerHTML = data.transactions
+                        .sort((a, b) => new Date(b.purchase_date) - new Date(a.purchase_date))
+                        .map(transaction => `
+                            <tr>
+                                <td>${transaction.customer_id}</td>
+                                <td>${transaction.seller_id}</td>
+                                <td>${new Date(transaction.purchase_date).toLocaleString()}</td>
+                                <td>${transaction.status}</td>
+                                <td>${transaction.tracking_number}</td>
+                            </tr>
+                        `).join('');
+
+                    // Добавьте обработчики для изменений в ячейках
+                    document.querySelectorAll('#products-list [contenteditable]').forEach(cell => {
+                        cell.addEventListener('input', (event) => {
+                            const row = event.target.closest('tr');
+                            const applyBtn = row.querySelector('.apply-btn');
+                            applyBtn.classList.add('active');
+                        });
+                    });
+
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка получения данных', error);
+                window.location.href = '/';
+            });
+
+            document.getElementById('logout-button').addEventListener('click', () => {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('profile_token');
+                window.location.href = '/login';
+            });
+
+            window.applyChanges = async (event, stockId) => {
+                const row = event.target.closest('tr');
+                const quantityCell = row.querySelector('[data-field="quantity"]');
+                const newQuantity = quantityCell.innerText.trim();
+
+                if (isNaN(newQuantity) || newQuantity === '') {
+                    alert('Введите корректное значение для количества');
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/update-stock', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            stock_id: stockId,
+                            quantity: parseInt(newQuantity)
+                        })
+                    });
+                    if (response.ok) {
+                        alert('Количество успешно обновлено');
+                        const applyBtn = row.querySelector('.apply-btn');
+                        applyBtn.classList.remove('active');
+                    } else {
+                        alert('Ошибка при обновлении количества');
+                    }
+                } catch (error) {
+                    console.error('Ошибка при обновлении количества', error);
+                    alert('Ошибка при обновлении количества');
+                }
+            };
+
+            window.applyActivationChanges = async (event, productId, isActive) => {
+                try {
+                    const response = await fetch('/activate-product', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            product_id: productId,
+                            is_active: isActive
+                        })
+                    });
+                    if (response.ok) {
+                        alert('Статус продукта успешно обновлен');
+                        const row = event.target.closest('tr');
+                        row.remove();
+                    } else {
+                        alert('Ошибка при обновлении статуса продукта');
+                    }
+                } catch (error) {
+                    console.error('Ошибка при обновлении статуса продукта', error);
+                    alert('Ошибка при обновлении статуса продукта');
+                }
+            };
+
+            function openTab(event, tabId) {
+                const tabContents = document.querySelectorAll('.tab-content');
+                tabContents.forEach(content => content.classList.remove('active'));
+
+                const tabButtons = document.querySelectorAll('.tab-button');
+                tabButtons.forEach(button => button.classList.remove('active'));
+
+                document.getElementById(tabId).classList.add('active');
+                if (event) {
+                    event.currentTarget.classList.add('active');
+                } else {
+                    document.querySelector(`a[href="#${tabId}"]`).classList.add('active');
+                }
+
+                window.location.hash = tabId;
+            }
+
+            window.addEventListener('hashchange', () => {
+                const hash = window.location.hash.substring(1);
+                openTab(null, hash);
+            });
+
+            const hash = window.location.hash.substring(1);
+            if (hash) {
+                openTab(null, hash);
+            }
+        });
+
+        function handleImageError(image) {
+            image.onerror = null;
+            image.src = '/static/default-image.png';
+        }
+
+        function redirectToProfile(profileUrl, token) {
+            localStorage.setItem('profile_token', token);
+            window.location.href = profileUrl;
+        }
+    </script>
+</body>
+</html>

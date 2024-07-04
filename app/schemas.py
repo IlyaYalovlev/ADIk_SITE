@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, conint
 from typing import Optional, List
 from decimal import Decimal
 from pydantic_settings import BaseSettings
@@ -184,3 +184,26 @@ class CreateCheckoutSessionRequest(BaseModel):
     currency: str
     user_id: int
     delivery_details: DeliveryDetailsCreate
+
+
+class ProductQuantityUpdateSchema(BaseModel):
+    stock_id: int
+    quantity: conint(gt=0)
+
+class ProductActivationSchema(BaseModel):
+    product_id: str
+    is_active: bool
+
+class SaleUpdateSchema(BaseModel):
+    sale_id: int = Field(..., description="Идентификатор сделки")
+    status: str = Field(..., description="Новый статус сделки")
+    tracking_number: Optional[str] = Field(None, description="Трек-номер")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "sale_id": 123,
+                "status": "Отправлен",
+                "tracking_number": "TRACK123456789"
+            }
+        }

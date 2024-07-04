@@ -323,10 +323,13 @@ async def get_seller_sales(user_id: int, db: AsyncSession):
     sales_list = []
     for sale in sales:
         sale_data = {
+            "id": sale.id,
             "date": sale.purchase_date.strftime("%Y-%m-%d %H:%M:%S"),  # форматирование даты и времени
             "product_name": sale.stock.product.model_name,  # название продукта
             "total_price": sale.total_price,  # стоимость
-            "quantity": sale.quantity
+            "quantity": sale.quantity,
+            "status": sale.status,
+            "tracking_number": sale.tracking_number
         }
         sales_list.append(sale_data)
     return sales_list

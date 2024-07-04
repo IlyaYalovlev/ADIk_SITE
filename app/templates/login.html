@@ -170,7 +170,8 @@
                         const data = await response.json();
                         const accessToken = data.access_token;
                         localStorage.setItem('access_token', accessToken);
-                        window.location.href = '/';
+                        const redirectUrl = data.redirect_url ? data.redirect_url : '/';
+                        window.location.href = redirectUrl;
                     } else {
                         errorMessage.style.display = 'block';
                     }
