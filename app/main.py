@@ -201,12 +201,12 @@ async def update_sale(data: SaleUpdateSchema, db: AsyncSession = Depends(get_db)
     if current_user_id is None:
         raise HTTPException(status_code=403, detail="Unauthorized access")
 
-    sale = await get_purchase(db, data.sale_id)
-    if sale is None:
+    purchase = await get_purchase(db, data.sale_id)
+    if purchase is None:
         raise HTTPException(status_code=404, detail="Sale not found")
-    sale.status = data.status
-    sale.tracking_number = data.tracking_number if data.tracking_number != "undefined" else None
-    db.add(sale)
+    purchase.status = data.status
+    purchase.tracking_number = data.tracking_number if data.tracking_number != "undefined" else None
+    db.add(purchase)
     await db.commit()
 
     return JSONResponse(status_code=200, content={"detail": "Sale updated successfully"})

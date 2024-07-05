@@ -251,31 +251,31 @@
                         'delivered': 'Доставлен'
                     };
 
-                    document.getElementById('sales-table').innerHTML = data.sales.map(sale => `
-                        <tr data-sale-id="${sale.id}">
+                    document.getElementById('sales-table').innerHTML = data.sales.map(sale =>
+                        `<tr data-sale-id="${sale.id}">
                             <td>${sale.date}</td>
                             <td><a href="#" class="product-link" data-purchase-id="${sale.id}">${sale.product_name}</a></td>
                             <td>${sale.quantity}</td>
                             <td>${sale.total_price}</td>
                             <td>
                                 <select data-field="status">
-                                    ${Object.entries(statusMap).map(([key, value]) => `
-                                        <option value="${key}" ${sale.status === key ? 'selected' : ''}>${value}</option>
-                                    `).join('')}
+                                    ${Object.entries(statusMap).map(([key, value]) =>
+                                        `<option value="${key}" ${sale.status === key ? 'selected' : ''}>${value}</option>`
+                                    ).join('')}
                                 </select>
                             </td>
                             <td contenteditable="true" data-field="tracking_number">${sale.tracking_number || ''}</td>
                             <td><button class="apply-btn" onclick="applySaleChanges(event, ${sale.id})">Применить</button></td>
-                        </tr>
-                    `).join('');
-                    document.getElementById('products-list').innerHTML = data.products.map(product => `
-                        <tr data-stock-id="${product.stock_id}" data-product-id="${product.product_id}">
+                        </tr>`
+                    ).join('');
+                    document.getElementById('products-list').innerHTML = data.products.map(product =>
+                        `<tr data-stock-id="${product.stock_id}" data-product-id="${product.product_id}">
                             <td>${product.name}</td>
                             <td contenteditable="true" data-field="price">${product.price}</td>
                             <td>${product.size}</td>
                             <td contenteditable="true" data-field="stock">${product.stock}</td>
-                        </tr>
-                    `).join('');
+                        </tr>`
+                    ).join('');
 
                     document.querySelectorAll('.product-link').forEach(link => {
                         link.addEventListener('click', async (event) => {
@@ -311,8 +311,8 @@
                 const modal = document.createElement('div');
                 modal.className = 'modal';
 
-                modal.innerHTML = `
-                    <div class="modal-content">
+                modal.innerHTML =
+                    `<div class="modal-content">
                         <span class="modal-close">&times;</span>
                         <h3>Детали доставки</h3>
                         <p><strong>Город:</strong> ${details.city}</p>
@@ -321,8 +321,7 @@
                         <p><strong>Номер квартиры:</strong> ${details.apartment_number}</p>
                         <p><strong>Получатель:</strong> ${details.recipient_name}</p>
                         <p><strong>Телефон:</strong> ${details.phone}</p>
-                    </div>
-                `;
+                    </div>`;
 
                 document.body.appendChild(modal);
 
@@ -513,6 +512,10 @@
             localStorage.setItem('profile_token', token);
             window.location.href = profileUrl;
         }
+
+        function redirectToCreateProduct() {
+            window.location.href = '/create_product';
+        }
     </script>
 </head>
 <body>
@@ -600,7 +603,7 @@
         </div>
         <div id="products" class="tab-content">
             <h2>Размещенные товары</h2>
-            <button id="new-product-button">Разместить новый товар</button>
+            <button id="new-product-button" onclick="redirectToCreateProduct()">Разместить новый товар</button>
             <div class="products-table-container">
                 <table class="products-table">
                     <thead>

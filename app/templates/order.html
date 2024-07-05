@@ -310,6 +310,13 @@
                     customer_id: userId
                 };
 
+                // Валидация номера телефона
+                const phoneRegex = /^[0-9]{10,15}$/;
+                if (!phoneRegex.test(deliveryDetails.phone)) {
+                    alert('Пожалуйста, введите корректный номер телефона (от 10 до 15 цифр).');
+                    return;
+                }
+
                 try {
                     const response = await fetch('/create-checkout-session', {
                         method: 'POST',

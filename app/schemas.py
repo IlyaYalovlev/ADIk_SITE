@@ -1,6 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, conint
-from typing import Optional, List
+from typing import List
 from decimal import Decimal
 
 
@@ -26,7 +26,7 @@ class UserCreate(BaseModel):
     last_name: str
     phone: str
     user_type: str
-    total_orders_value: Optional[Decimal] = Decimal('0.00')
+    total_orders_value: Decimal | None = Decimal('0.00')
 
     class Config:
         from_attributes = True
@@ -41,7 +41,7 @@ class StockBase(BaseModel):
     quantity: int
     size: float
     price: Decimal
-    discount_price: Optional[Decimal] = None
+    discount_price: Decimal | None
 
 class StockCreate(StockBase):
     pass
@@ -92,8 +92,8 @@ class StockBase(BaseModel):
 class AddToCartRequest(BaseModel):
     stock_id: int
     quantity: int
-    user_id: Optional[int] = None
-    session_id: Optional[str] = None
+    user_id: int | None = None
+    session_id: str | None = None
 
 class UpdateCartRequest(BaseModel):
     cartitem_id: int
@@ -105,7 +105,7 @@ class DeliveryDetailsCreate(BaseModel):
     city: str
     street: str
     house_number: str
-    apartment_number: Optional[str]
+    apartment_number: str | None
     recipient_name: str
     phone: str
 
@@ -117,7 +117,7 @@ class DeliveryDetailsС(BaseModel):
     city: str
     street: str
     house_number: str
-    apartment_number: Optional[str]
+    apartment_number: str | None
     recipient_name: str
     phone: str
 
@@ -152,7 +152,7 @@ class ProductActivationSchema(BaseModel):
 class SaleUpdateSchema(BaseModel):
     sale_id: int = Field(..., description="Идентификатор сделки")
     status: str = Field(..., description="Новый статус сделки")
-    tracking_number: Optional[str] = Field(None, description="Трек-номер")
+    tracking_number: str | None = Field(None, description="Трек-номер")
 
     class Config:
         schema_extra = {
