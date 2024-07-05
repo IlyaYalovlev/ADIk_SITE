@@ -2,9 +2,7 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, conint
 from typing import Optional, List
 from decimal import Decimal
-from pydantic_settings import BaseSettings
 
-from app.models import CartItem
 
 
 # User Schemas

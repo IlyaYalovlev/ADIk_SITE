@@ -4,8 +4,10 @@ from sqlalchemy.orm import sessionmaker
 from contextlib import asynccontextmanager
 from config import DATABASE_URL as DATABASE_URL1
 
+# Получаем URL базы данных из конфигурационного файла
 DATABASE_URL = DATABASE_URL1
 
+# Создаем асинхронный движок базы данных с параметрами пула соединений
 engine = create_async_engine(
     DATABASE_URL,
     echo=True,
@@ -14,6 +16,7 @@ engine = create_async_engine(
     pool_timeout=30,
 )
 
+# Создаем фабрику сессий для асинхронного использования с базой данных
 AsyncSessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
@@ -21,8 +24,10 @@ AsyncSessionLocal = sessionmaker(
     class_=AsyncSession
 )
 
+# Создаем базовый класс для моделей
 Base = declarative_base()
 
+# Контекстный менеджер для работы с сессиями базы данных
 @asynccontextmanager
 async def get_db_session():
     async with AsyncSessionLocal() as session:
@@ -33,10 +38,7 @@ async def get_db_session():
             await session.rollback()
             raise
 
+# Асинхронный генератор для получения сессии базы данных
 async def get_db():
     async with get_db_session() as session:
         yield session
-
-
-
-

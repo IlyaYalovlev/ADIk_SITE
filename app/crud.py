@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from email.header import Header
 from email.mime.text import MIMEText
-from typing import Tuple, List, Optional
+from typing import Tuple, List
 import aiofiles
 import aiosmtplib
 import stripe
@@ -20,7 +20,6 @@ from decimal import Decimal
 from .database import get_db
 from .models import Stock, Product, Users, Purchase, Cart, CartItem, DeliveryDetails
 from .schemas import DeliveryDetailsCreate
-
 
 # User CRUD operations
 async def create_user(db: AsyncSession, user: schemas.UserCreate):
@@ -42,16 +41,8 @@ async def get_users(db: AsyncSession, skip: int = 0, limit: int = 10):
     result = await db.execute(select(models.Users).offset(skip).limit(limit))
     return result.scalars().all()
 
-async def update_user_password(db: AsyncSession, user_id: int, new_password: str):
-    db_user = await get_user_by_id(db, user_id)
-    if db_user:
-        db_user.set_password(new_password)
-        await db.commit()
-        await db.refresh(db_user)
-    else:
-        raise HTTPException(status_code=404, detail="User not found")
 
-# Stock
+# Stock CRUD operations
 async def get_stock_item(db: AsyncSession, stock_id: int):
     result = await db.execute(select(models.Stock).filter(models.Stock.id == stock_id))
     return result.scalars().first()
@@ -67,14 +58,11 @@ async def create_stock_item(db: AsyncSession, stock: schemas.StockCreate):
     await db.refresh(db_stock)
     return db_stock
 
-# Purchases
+# Purchases CRUD operations
 async def get_purchase(db: AsyncSession, purchase_id: int):
     result = await db.execute(select(models.Purchase).filter(models.Purchase.id == purchase_id))
     return result.scalars().first()
 
-async def get_purchases(db: AsyncSession, skip: int = 0, limit: int = 10):
-    result = await db.execute(select(models.Purchase).offset(skip).limit(limit))
-    return result.scalars().all()
 
 async def create_purchase(db: AsyncSession, purchase: schemas.PurchaseCreate):
     db_purchase = models.Purchase(**purchase.dict())
@@ -85,11 +73,8 @@ async def create_purchase(db: AsyncSession, purchase: schemas.PurchaseCreate):
 
 async def update_customer(db: AsyncSession, purchase: schemas.PurchaseCreate):
     db_customer = await get_user_by_id(db, purchase.customer_id)
-
     if db_customer:
-
         db_customer.total_orders_value += Decimal(purchase.total_price)
-
         await db.commit()
         await db.refresh(db_customer)
     else:
@@ -97,13 +82,10 @@ async def update_customer(db: AsyncSession, purchase: schemas.PurchaseCreate):
 
 async def update_seller(db: AsyncSession, purchase: schemas.PurchaseCreate):
     db_seller = await get_user_by_id(db, purchase.seller_id)
-
     if db_seller:
-
         if db_seller.total_orders_value is None:
             db_seller.total_orders_value = Decimal('0.00')
         db_seller.total_orders_value += Decimal(purchase.total_price)
-
         await db.commit()
         await db.refresh(db_seller)
     else:
@@ -111,13 +93,10 @@ async def update_seller(db: AsyncSession, purchase: schemas.PurchaseCreate):
 
 async def update_stock(db: AsyncSession, purchase: schemas.PurchaseCreate):
     db_stock = await get_stock_item(db, purchase.stock_id)
-
     if db_stock:
-
         db_stock.quantity -= purchase.quantity
         if db_stock.quantity == 0:
             await db.delete(db_stock)
-
         await db.commit()
         await db.refresh(db_stock)
     else:
@@ -153,17 +132,14 @@ async def get_popular_products(db: AsyncSession):
     paginated_products = filtered_products[:28]
     return paginated_products
 
-
 async def get_mens_shoes(db: AsyncSession, page: int, per_page: int, min_price: float = None, max_price: float = None, sizes: List[float] = None, sort: str = None):
     query = select(Stock).join(Product).options(selectinload(Stock.product)).filter(Product.gender.in_(['M', 'U']))
-
     if min_price is not None:
         query = query.filter(Stock.price >= min_price)
     if max_price is not None:
         query = query.filter(Stock.price <= max_price)
     if sizes:
         query = query.filter(Stock.size.in_(sizes))
-
     if sort == 'price-asc':
         query = query.order_by(Stock.price.asc())
     elif sort == 'price-desc':
@@ -172,7 +148,6 @@ async def get_mens_shoes(db: AsyncSession, page: int, per_page: int, min_price: 
         query = query.order_by((Stock.price - Stock.discount_price).desc())
     elif sort == 'newest':
         query = query.order_by(Stock.created_at.desc())
-
     result = await db.execute(query)
     stocks = result.scalars().all()
     total_query = await db.execute(
@@ -198,14 +173,12 @@ async def get_mens_shoes(db: AsyncSession, page: int, per_page: int, min_price: 
 
 async def get_kids_shoes(db: AsyncSession, page: int, per_page: int, min_price: float = None, max_price: float = None, sizes: List[float] = None, sort: str = None):
     query = select(Stock).join(Product).options(selectinload(Stock.product)).filter(Product.gender.in_(['K']))
-
     if min_price is not None:
         query = query.filter(Stock.price >= min_price)
     if max_price is not None:
         query = query.filter(Stock.price <= max_price)
     if sizes:
         query = query.filter(Stock.size.in_(sizes))
-
     if sort == 'price-asc':
         query = query.order_by(Stock.price.asc())
     elif sort == 'price-desc':
@@ -214,7 +187,6 @@ async def get_kids_shoes(db: AsyncSession, page: int, per_page: int, min_price: 
         query = query.order_by((Stock.price - Stock.discount_price).desc())
     elif sort == 'newest':
         query = query.order_by(Stock.created_at.desc())
-
     result = await db.execute(query)
     stocks = result.scalars().all()
     total_query = await db.execute(
@@ -240,14 +212,12 @@ async def get_kids_shoes(db: AsyncSession, page: int, per_page: int, min_price: 
 
 async def get_womens_shoes(db: AsyncSession, page: int, per_page: int, min_price: float = None, max_price: float = None, sizes: List[float] = None, sort: str = None):
     query = select(Stock).join(Product).options(selectinload(Stock.product)).filter(Product.gender.in_(['W', 'U']))
-
     if min_price is not None:
         query = query.filter(Stock.price >= min_price)
     if max_price is not None:
         query = query.filter(Stock.price <= max_price)
     if sizes:
         query = query.filter(Stock.size.in_(sizes))
-
     if sort == 'price-asc':
         query = query.order_by(Stock.price.asc())
     elif sort == 'price-desc':
@@ -256,7 +226,6 @@ async def get_womens_shoes(db: AsyncSession, page: int, per_page: int, min_price
         query = query.order_by((Stock.price - Stock.discount_price).desc())
     elif sort == 'newest':
         query = query.order_by(Stock.created_at.desc())
-
     result = await db.execute(query)
     stocks = result.scalars().all()
     total_query = await db.execute(
@@ -293,7 +262,6 @@ async def get_sellers(session: AsyncSession):
     result = await session.execute(select(Users).where(Users.user_type == 'seller'))
     return result.scalars().all()
 
-
 async def get_customer_purchases(user_id: int, db: AsyncSession):
     result = await db.execute(
         select(Purchase)
@@ -311,7 +279,6 @@ async def get_customer_purchases(user_id: int, db: AsyncSession):
             "quantity": purchase.quantity,
             "status": purchase.status,
             "tracking_number": purchase.tracking_number
-
         }
         purchase_list.append(purchase_data)
     return purchase_list
@@ -359,7 +326,6 @@ async def get_seller_products(user_id: int, db: AsyncSession):
         product_list.append(product_data)
     return product_list
 
-
 async def send_email(email: str, msg_text: str):
     login = EMAIL
     password = PASSWORD
@@ -384,16 +350,10 @@ async def send_email(email: str, msg_text: str):
     except Exception as e:
         print(f"Failed to send email: {e}")
 
-
 async def paginate_products(products: List, page: int, per_page: int) -> Tuple[List, int]:
     """
     Фильтрует товары, оставляя по одному товару с уникальными model_name,
     и выполняет пагинацию.
-
-    :param products: Список товаров
-    :param page: Номер текущей страницы
-    :param per_page: Количество товаров на странице
-    :return: Отфильтрованный и пагинированный список товаров и общее количество страниц
     """
     # Фильтрация товаров, чтобы оставался только один товар с одинаковым product.model_name
     filtered_products = []
@@ -414,8 +374,10 @@ async def paginate_products(products: List, page: int, per_page: int) -> Tuple[L
 
     return paginated_products, total_pages
 
-
 async def save_image(file: UploadFile, folder: str) -> str:
+    """
+    Сохраняет изображение в указанную папку.
+    """
     if not os.path.exists(folder):
         os.makedirs(folder)
     file_extension = os.path.splitext(file.filename)[1]
@@ -472,6 +434,9 @@ async def get_product_id_by_stock_id(db: AsyncSession, stock_id: int):
     return result.scalar()
 
 async def create_purchase_full(order_details: schemas.OrderDetails, db: AsyncSession = Depends(get_db)):
+    """
+    Создание полной покупки, включая обновление данных о покупателе, продавце и товаре.
+    """
     user_id = order_details.user_id
     payment_intent_id = order_details.payment_intent_id
     delivery_details = order_details.delivery_details
@@ -513,7 +478,6 @@ async def create_purchase_full(order_details: schemas.OrderDetails, db: AsyncSes
                 recipient_name=delivery_details.recipient_name,
                 phone=delivery_details.phone
             )
-            print(delivery_data)
             await create_delivery_details(db, delivery_data)
 
         # Удаление элементов из корзины
@@ -525,13 +489,16 @@ async def create_purchase_full(order_details: schemas.OrderDetails, db: AsyncSes
         raise HTTPException(status_code=400, detail=str(e))
 
 def decimal_to_float(data):
-        if isinstance(data, dict):
-            return {k: decimal_to_float(v) for k, v in data.items()}
-        elif isinstance(data, list):
-            return [decimal_to_float(v) for v in data]
-        elif isinstance(data, Decimal):
-            return float(data)
-        elif isinstance(data, datetime):
-            return data.isoformat()
-        else:
-            return data
+    """
+    Преобразует значения Decimal в float для сериализации.
+    """
+    if isinstance(data, dict):
+        return {k: decimal_to_float(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [decimal_to_float(v) for v in data]
+    elif isinstance(data, Decimal):
+        return float(data)
+    elif isinstance(data, datetime):
+        return data.isoformat()
+    else:
+        return data
