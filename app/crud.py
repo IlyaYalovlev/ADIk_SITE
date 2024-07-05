@@ -307,7 +307,10 @@ async def get_customer_purchases(user_id: int, db: AsyncSession):
             "date": purchase.purchase_date.strftime("%Y-%m-%d %H:%M:%S"),  # форматирование даты и времени
             "product_name": purchase.stock.product.model_name,  # название продукта
             "total_price": purchase.total_price,  # стоимость
-            "quantity": purchase.quantity
+            "quantity": purchase.quantity,
+            "status": purchase.status,
+            "tracking_number": purchase.tracking_number
+
         }
         purchase_list.append(purchase_data)
     return purchase_list

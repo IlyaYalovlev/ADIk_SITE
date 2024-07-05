@@ -113,6 +113,7 @@
             padding: 10px;
             border-radius: 5px;
             z-index: 1001;
+            display: none;
         }
         .apply-btn {
             display: inline-block;
@@ -135,7 +136,7 @@
             document.body.appendChild(suggestionsContainer);
 
             const token = localStorage.getItem('profile_token');
-            let userId = window.location.pathname.split('/').pop();
+            let userId;
             let sessionId = localStorage.getItem('session_id');
             if (!sessionId) {
                 sessionId = generateSessionId();
@@ -147,25 +148,86 @@
                 return;
             }
 
-            fetch(`/api/profile_seller/${userId}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
+            async function updateUserInfo() {
+                if (token) {
+                    try {
+                        const response = await fetch('/user-info', {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                        const data = await response.json();
+                        if (data.id) {
+                            userId = data.id;
+                            const fullName = `${data.first_name} ${data.last_name}`;
+                            let profileUrl = `/profile_customer/${data.id}`;
+                            if (data.user_type === 'seller') {
+                                profileUrl = `/profile_seller/${data.id}`;
+                            }
+                            localStorage.setItem('access_token', data.access_token);
+                            userInfo.innerHTML = `<a href="#" onclick="redirectToProfile('${profileUrl}', '${data.access_token}')" class="auth-button">${fullName}</a>`;
+                            document.getElementById('user-email').textContent = data.email;
+                            document.getElementById('user-first-name').textContent = data.first_name;
+                            document.getElementById('user-last-name').textContent = data.last_name;
+                            document.getElementById('user-phone').textContent = data.phone;
+                        } else {
+                            userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                        }
+                    } catch (error) {
+                        console.error('Не удалось получить информацию о пользователе', error);
+                        userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
+                    }
+                } else {
+                    userInfo.innerHTML = '<a href="/login" class="auth-button">Авторизация</a>';
                 }
-            })
-            .then(response => {
+            }
+
+            async function createOrGetCart() {
+                const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                headers['Content-Type'] = 'application/json';
+
+                const body = userId ? { user_id: userId } : { session_id: sessionId };
+
+                const response = await fetch('/cart', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(body)
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    document.querySelector('.cart-button .count').innerText = data.total_items;
+                } else {
+                    console.error('Failed to create or get cart:', data);
+                }
+            }
+
+            async function fetchProfileData() {
+                const response = await fetch(`/api/profile_seller/${userId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
                 if (response.status === 401 || response.status === 403) {
                     window.location.href = '/';
                     return null;
                 }
-                return response.json();
-            })
-            .then(data => {
+                const data = await response.json();
                 if (data) {
                     document.getElementById('user-email').textContent = data.user.email;
                     document.getElementById('user-first-name').textContent = data.user.first_name;
                     document.getElementById('user-last-name').textContent = data.user.last_name;
                     document.getElementById('user-phone').textContent = data.user.phone;
                     document.getElementById('total-orders-value').textContent = data.user.total_orders_value;
+
+                    const statusMap = {
+                        'paid': 'Оплачен',
+                        'in_progress': 'Получен',
+                        'shipping': 'Отправлен',
+                        'delivered': 'Доставлен'
+                    };
+
                     document.getElementById('sales-table').innerHTML = data.sales.map(sale => `
                         <tr data-sale-id="${sale.id}">
                             <td>${sale.date}</td>
@@ -174,10 +236,9 @@
                             <td>${sale.total_price}</td>
                             <td>
                                 <select data-field="status">
-                                    <option value="paid" ${sale.status === 'paid' ? 'selected' : ''}>Оплачен</option>
-                                    <option value="in_progress" ${sale.status === 'in_progress' ? 'selected' : ''}>Получен</option>
-                                    <option value="shipping" ${sale.status === 'shipping' ? 'selected' : ''}>Отправлен</option>
-                                    <option value="delivered" ${sale.status === 'delivered' ? 'selected' : ''}>Доставлен</option>
+                                    ${Object.entries(statusMap).map(([key, value]) => `
+                                        <option value="${key}" ${sale.status === key ? 'selected' : ''}>${value}</option>
+                                    `).join('')}
                                 </select>
                             </td>
                             <td contenteditable="true" data-field="tracking_number">${sale.tracking_number || ''}</td>
@@ -193,11 +254,15 @@
                         </tr>
                     `).join('');
                 }
-            })
-            .catch(error => {
-                console.error('Ошибка получения данных профиля', error);
-                window.location.href = '/';
-            });
+            }
+
+            async function initialize() {
+                await updateUserInfo();
+                await createOrGetCart();
+                await fetchProfileData();
+            }
+
+            initialize();
 
             document.getElementById('logout-button').addEventListener('click', () => {
                 localStorage.removeItem('access_token');
@@ -214,12 +279,12 @@
 
                 const passwordRegex = /^(?=.*[A-Z])(?=.*[!@#$%^&*(),.?":{}|<>])[A-Za-z\d!@#$%^&*(),.?":{}|<>]{8,}$/;
                 if (newPassword !== confirmPassword) {
-                    alert('Новый пароль и подтверждение пароля не совпадают');
+                    showNotification('Новый пароль и подтверждение пароля не совпадают', true);
                     return;
                 }
 
                 if (!passwordRegex.test(newPassword)) {
-                    alert('Новый пароль должен быть не менее 8 символов, содержать хотя бы одну заглавную букву или символ');
+                    showNotification('Новый пароль должен быть не менее 8 символов, содержать хотя бы одну заглавную букву или символ', true);
                     return;
                 }
 
@@ -233,12 +298,13 @@
                         body: new URLSearchParams({ old_password: oldPassword, new_password: newPassword })
                     });
                     if (response.ok) {
-                        alert('Пароль успешно изменен');
+                        showNotification('Пароль успешно изменен');
                     } else {
-                        alert('Ошибка при изменении пароля');
+                        showNotification('Ошибка при изменении пароля', true);
                     }
                 } catch (error) {
                     console.error('Ошибка при изменении пароля', error);
+                    showNotification('Ошибка при изменении пароля', true);
                 }
             });
 
@@ -263,15 +329,15 @@
                         body: JSON.stringify({ products })
                     });
                     if (response.ok) {
-                        alert('Товары успешно обновлены');
+                        showNotification('Товары успешно обновлены');
                     } else {
                         const errorData = await response.json();
                         console.error('Ошибка при обновлении товаров', errorData);
-                        alert('Ошибка при обновлении товаров: ' + errorData.detail);
+                        showNotification('Ошибка при обновлении товаров: ' + errorData.detail, true);
                     }
                 } catch (error) {
                     console.error('Ошибка при обновлении товаров', error);
-                    alert('Ошибка при обновлении товаров');
+                    showNotification('Ошибка при обновлении товаров', true);
                 }
             });
 
@@ -281,11 +347,6 @@
                 const trackingNumberCell = row.querySelector('[data-field="tracking_number"]');
                 const newStatus = statusSelect.value;
                 const newTrackingNumber = trackingNumberCell.innerText.trim();
-
-                if (newStatus !== 'paid' && newStatus !== 'in_progress' && !newTrackingNumber) {
-                    alert('Введите трек-номер для выбранного статуса');
-                    return;
-                }
 
                 try {
                     const response = await fetch('/update-sale', {
@@ -297,17 +358,17 @@
                         body: JSON.stringify({
                             sale_id: saleId,
                             status: newStatus,
-                            tracking_number: newTrackingNumber
+                            tracking_number: newTrackingNumber || null
                         })
                     });
                     if (response.ok) {
-                        alert('Сделка успешно обновлена');
+                        showNotification('Сделка успешно обновлена');
                     } else {
-                        alert('Ошибка при обновлении сделки');
+                        showNotification('Ошибка при обновлении сделки', true);
                     }
                 } catch (error) {
                     console.error('Ошибка при обновлении сделки', error);
-                    alert('Ошибка при обновлении сделки');
+                    showNotification('Ошибка при обновлении сделки', true);
                 }
             };
 
@@ -338,6 +399,25 @@
                 openTab(null, hash);
             }
         });
+
+        function showNotification(message, isError = false) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            if (isError) {
+                notification.style.backgroundColor = '#f44336'; // Red for error
+            } else {
+                notification.style.backgroundColor = '#4caf50'; // Green for success
+            }
+            notification.textContent = message;
+
+            document.body.appendChild(notification);
+            notification.style.display = 'block';
+
+            setTimeout(() => {
+                notification.style.display = 'none';
+                document.body.removeChild(notification);
+            }, 3000);
+        }
 
         function handleImageError(image) {
             image.onerror = null;

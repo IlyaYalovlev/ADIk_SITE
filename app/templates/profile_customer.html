@@ -192,6 +192,13 @@
         }
 
         async function fetchProfileData() {
+            const statusMap = {
+                'paid': 'Оплачен',
+                'in_progress': 'Получен',
+                'shipping': 'Отправлен',
+                'delivered': 'Доставлен'
+            };
+
             const response = await fetch(`/api/profile_customer/${userId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -214,6 +221,8 @@
                         <td>${purchase.product_name}</td>
                         <td>${purchase.quantity}</td>
                         <td>${purchase.total_price}</td>
+                        <td>${statusMap[purchase.status]}</td>
+                        <td>${purchase.tracking_number}</td>
                     </tr>
                 `).join('');
             }
@@ -603,6 +612,8 @@
                             <th>Товары</th>
                             <th>Количество</th>
                             <th>Сумма</th>
+                            <th>Статус</th>
+                            <th>Трек номер</th>
                         </tr>
                     </thead>
                     <tbody id="purchases-table">

@@ -181,7 +181,6 @@ async def api_profile_seller(user_id: int, db: AsyncSession = Depends(get_db), a
         # Get seller sales and products
         sales = await get_seller_sales(user_id, db)
         products = await get_seller_products(user_id, db)
-        print(*products)
         response_data = {
             "user": {
                 "email": user.email,
@@ -214,15 +213,7 @@ async def update_sale(data: SaleUpdateSchema, db: AsyncSession = Depends(get_db)
     sale = await get_purchase(db, data.sale_id)
     if sale is None:
         raise HTTPException(status_code=404, detail="Sale not found")
-
-    status_map = {
-        "paid": "Оплачен",
-        "in_progress": "Получен",
-        "shipping": "Отправлен",
-        "delivered": "Доставлен"
-    }
-
-    sale.status = status_map.get(data.status, data.status)
+    sale.status = data.status
     sale.tracking_number = data.tracking_number if data.tracking_number != "undefined" else None
     db.add(sale)
     await db.commit()
