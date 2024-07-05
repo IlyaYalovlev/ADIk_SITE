@@ -1,5 +1,6 @@
 import os
 import uuid
+from datetime import datetime
 from email.header import Header
 from email.mime.text import MIMEText
 from typing import Tuple, List, Optional
@@ -522,3 +523,15 @@ async def create_purchase_full(order_details: schemas.OrderDetails, db: AsyncSes
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+def decimal_to_float(data):
+        if isinstance(data, dict):
+            return {k: decimal_to_float(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [decimal_to_float(v) for v in data]
+        elif isinstance(data, Decimal):
+            return float(data)
+        elif isinstance(data, datetime):
+            return data.isoformat()
+        else:
+            return data

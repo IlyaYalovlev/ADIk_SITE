@@ -1,3 +1,5 @@
+import asyncio
+import hashlib
 import json
 import os
 import uuid
@@ -25,11 +27,12 @@ from fastapi.responses import FileResponse
 from fastapi import Response
 from config import SECRET, API_KEY
 from . import schemas, crud
+from redis import asyncio as aioredis
 from .auth import create_access_token, get_current_user_id, generate_confirmation_token, confirm_token
 from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
     get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products, \
     get_products, paginate_products, save_image, get_cart_items_total_quantity_by_cart_id, get_cart_items_by_cart_id, \
-    get_product_id_by_stock_id, get_stock_item, create_purchase, create_purchase_full, get_purchase
+    get_product_id_by_stock_id, get_stock_item, create_purchase, create_purchase_full, get_purchase, decimal_to_float
 from .database import get_db
 from .models import Users, Product, Stock, Cart, CartItem, Purchase
 from .schemas import UserDetails, StockUpdateRequest, AddToCartRequest, UpdateCartRequest, PaymentRequest, OrderDetails, \
@@ -58,11 +61,20 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 # Подключаем Jinja2 templates
 templates = Jinja2Templates(directory="app/templates")
 
+redis = aioredis.from_url("redis://localhost:6379", encoding="utf-8", decode_responses=True)
 
 
 SECRET_KEY = SECRET
 ALGORITHM = "HS256"
 
+def generate_cache_key(request: Request) -> str:
+    url = str(request.url)
+    return hashlib.md5(url.encode()).hexdigest()
+
+async def render_template(template_name: str, context: dict) -> str:
+    loop = asyncio.get_event_loop()
+    content = await loop.run_in_executor(None, templates.get_template(template_name).render, context)
+    return content
 
 
 # Маршрут для отображения формы авторизации
@@ -140,23 +152,20 @@ async def read_user_info(request: Request, db: AsyncSession = Depends(get_db)):
 
 # Обновление маршрута для главной страницы
 @app.get("/", response_class=HTMLResponse)
-@app.post("/", response_class=HTMLResponse)
-async def read_index(request: Request, authorization: Optional[str] = Header(None), db: AsyncSession = Depends(get_db)):
+async def read_index(request: Request, db: AsyncSession = Depends(get_db)):
+    cache_key = generate_cache_key(request)
+    cached_page = await redis.get(cache_key)
+
+    if cached_page:
+        return HTMLResponse(content=cached_page)
+
     products = await get_popular_products(db)
-    return templates.TemplateResponse("index.html", {"request": request, "products": products})
+    rendered_content = await render_template("index.html", {"request": request, "products": products})
+    await redis.setex(cache_key, 3600, rendered_content)  # Кэширование на 1 час
+    return HTMLResponse(content=rendered_content)
 
 
-def decimal_to_float(data):
-    if isinstance(data, dict):
-        return {k: decimal_to_float(v) for k, v in data.items()}
-    elif isinstance(data, list):
-        return [decimal_to_float(v) for v in data]
-    elif isinstance(data, Decimal):
-        return float(data)
-    elif isinstance(data, datetime):
-        return data.isoformat()
-    else:
-        return data
+
 
 # Обновление маршрута для профиля продавца
 @app.get("/profile_seller/{user_id}", response_class=HTMLResponse)
@@ -267,11 +276,17 @@ async def api_profile_customer(user_id: int, db: AsyncSession = Depends(get_db),
 @app.get("/mens-shoes", response_class=HTMLResponse)
 @app.get("/mens-shoes/{page}", response_class=HTMLResponse)
 async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db), min_price: float = Query(None), max_price: float = Query(None), sizes: str = Query(None), sort: str = Query(None)):
+    cache_key = generate_cache_key(request)
+    cached_page = await redis.get(cache_key)
+
+    if cached_page:
+        return HTMLResponse(content=cached_page)
+
     per_page = 28  # количество товаров на одной странице
     size_list = list(map(float, sizes.split(','))) if sizes else []
     products = await get_mens_shoes(db, page, per_page, min_price, max_price, size_list, sort)
     paginated_products, total_pages = await paginate_products(products, page, per_page)
-    return templates.TemplateResponse("mens_shoes.html", {
+    rendered_content = await render_template("mens_shoes.html", {
         "request": request,
         "products": paginated_products,
         "page": page,
@@ -281,16 +296,23 @@ async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends
         "sizes": sizes,
         "sort": sort
     })
+    await redis.setex(cache_key, 3600, rendered_content)  # Кэширование на 1 час
+    return HTMLResponse(content=rendered_content)
 
-# Маршрут для женской обуви
 @app.get("/womens-shoes", response_class=HTMLResponse)
 @app.get("/womens-shoes/{page}", response_class=HTMLResponse)
 async def womens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db), min_price: float = Query(None), max_price: float = Query(None), sizes: str = Query(None), sort: str = Query(None)):
+    cache_key = generate_cache_key(request)
+    cached_page = await redis.get(cache_key)
+
+    if cached_page:
+        return HTMLResponse(content=cached_page)
+
     per_page = 28  # количество товаров на одной странице
     size_list = list(map(float, sizes.split(','))) if sizes else []
     products = await get_womens_shoes(db, page, per_page, min_price, max_price, size_list, sort)
     paginated_products, total_pages = await paginate_products(products, page, per_page)
-    return templates.TemplateResponse("womens_shoes.html", {
+    rendered_content = await render_template("womens_shoes.html", {
         "request": request,
         "products": paginated_products,
         "page": page,
@@ -300,16 +322,23 @@ async def womens_shoes(request: Request, page: int = 1, db: AsyncSession = Depen
         "sizes": sizes,
         "sort": sort
     })
+    await redis.setex(cache_key, 3600, rendered_content)  # Кэширование на 1 час
+    return HTMLResponse(content=rendered_content)
 
-# Маршрут для детской обуви
 @app.get("/kids-shoes", response_class=HTMLResponse)
 @app.get("/kids-shoes/{page}", response_class=HTMLResponse)
 async def kids_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db), min_price: float = Query(None), max_price: float = Query(None), sizes: str = Query(None), sort: str = Query(None)):
+    cache_key = generate_cache_key(request)
+    cached_page = await redis.get(cache_key)
+
+    if cached_page:
+        return HTMLResponse(content=cached_page)
+
     per_page = 28  # количество товаров на одной странице
     size_list = list(map(float, sizes.split(','))) if sizes else []
     products = await get_kids_shoes(db, page, per_page, min_price, max_price, size_list, sort)
     paginated_products, total_pages = await paginate_products(products, page, per_page)
-    return templates.TemplateResponse("kids_shoes.html", {
+    rendered_content = await render_template("kids_shoes.html", {
         "request": request,
         "products": paginated_products,
         "page": page,
@@ -319,6 +348,8 @@ async def kids_shoes(request: Request, page: int = 1, db: AsyncSession = Depends
         "sizes": sizes,
         "sort": sort
     })
+    await redis.setex(cache_key, 3600, rendered_content)  # Кэширование на 1 час
+    return HTMLResponse(content=rendered_content)
 
 
 # Маршрут для отображения формы восстановления пароля
@@ -434,57 +465,6 @@ async def confirm_email(token: str, db: AsyncSession = Depends(get_db)):
 
     return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
-# Маршрут для отображения покупателей
-@app.get("/customers", response_class=HTMLResponse)
-async def read_customers(request: Request, db: AsyncSession = Depends(get_db)):
-    customers = await crud.get_customers(db)
-    return templates.TemplateResponse("customers.html", {"request": request, "customers": customers})
-
-# Маршрут для отображения продавцов
-@app.get("/sellers", response_class=HTMLResponse)
-async def read_sellers(request: Request, db: AsyncSession = Depends(get_db)):
-    sellers = await crud.get_sellers(db)
-    return templates.TemplateResponse("sellers.html", {"request": request, "sellers": sellers})
-
-# Маршрут для отображения покупок
-@app.get("/purchases", response_class=HTMLResponse)
-async def read_purchases(request: Request, db: AsyncSession = Depends(get_db)):
-    purchases = await crud.get_purchases(db)
-    return templates.TemplateResponse("purchases.html", {"request": request, "purchases": purchases})
-
-
-
-# Создание нового товара на складе
-@app.post("/stock/", response_model=schemas.Stock)
-async def create_stock(stock: schemas.StockCreate, db: AsyncSession = Depends(get_db)):
-    return await crud.create_stock_item(db, stock)
-
-# Получение информации о товаре на складе по ID
-@app.get("/stock/{stock_id}", response_model=schemas.Stock)
-async def read_stock(stock_id: int, db: AsyncSession = Depends(get_db)):
-    db_stock = await crud.get_stock_item(db, stock_id)
-    if db_stock is None:
-        raise HTTPException(status_code=404, detail="Stock item not found")
-    return db_stock
-
-# Получение списка товаров на складе с поддержкой пагинации
-@app.get("/stock/", response_model=list[schemas.Stock])
-async def read_stock_items(skip: int = 0, limit: int = 10, db: AsyncSession = Depends(get_db)):
-    return await crud.get_stock_items(db, skip=skip, limit=limit)
-
-
-# Получение информации о покупке по ID
-@app.get("/purchases/{purchase_id}", response_model=schemas.Purchase)
-async def read_purchase(purchase_id: int, db: AsyncSession = Depends(get_db)):
-    db_purchase = await crud.get_purchase(db, purchase_id)
-    if db_purchase is None:
-        raise HTTPException(status_code=404, detail="Purchase not found")
-    return db_purchase
-
-# Получение списка покупок с поддержкой пагинации
-@app.get("/purchases/", response_model=list[schemas.Purchase])
-async def read_purchases(skip: int = 0, limit: int = 10, db: AsyncSession = Depends(get_db)):
-    return await crud.get_purchases(db, skip=skip, limit=limit)
 
 # Определяем endpoint для обслуживания favicon
 @app.get("/favicon.ico")
@@ -737,7 +717,7 @@ async def search_page(request: Request, query: str, db: AsyncSession = Depends(g
 @app.post("/cart", response_class=JSONResponse)
 async def create_or_get_cart(request: Request, db: AsyncSession = Depends(get_db), user_id: Optional[int] = None,
                              session_id: Optional[str] = None):
-
+    total_items = 1
     data = await request.json()
     user_id = data.get('user_id')
     session_id = data.get('session_id')
@@ -753,9 +733,11 @@ async def create_or_get_cart(request: Request, db: AsyncSession = Depends(get_db
         new_cart = Cart(user_id=user_id, session_id=session_id)
         db.add(new_cart)
         await db.commit()
-        cart = new_cart  # Ensure cart is assigned if it's newly created
+        cart = new_cart
+        total_items = 0
 
-    total_items = await get_cart_items_total_quantity_by_cart_id(cart.id, db)
+    if total_items != 0:
+        total_items = await get_cart_items_total_quantity_by_cart_id(cart.id, db)
     return JSONResponse(status_code=200, content={"cart_id": cart.id, "total_items": total_items})
 
 
