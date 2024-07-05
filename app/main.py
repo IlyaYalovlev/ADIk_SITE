@@ -22,14 +22,21 @@ from redis import asyncio as aioredis
 from .auth import create_access_token, get_current_user_id, generate_confirmation_token, confirm_token
 from .crud import get_popular_products, get_mens_shoes, get_womens_shoes, get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products, get_products, paginate_products, save_image, get_cart_items_total_quantity_by_cart_id, get_cart_items_by_cart_id, create_purchase_full, get_purchase, decimal_to_float
 from .database import get_db
-from .models import Users, Product, Stock, Cart, CartItem, Purchase
-from .schemas import UserDetails, StockUpdateRequest, AddToCartRequest, UpdateCartRequest, CreateCheckoutSessionRequest, ProductQuantityUpdateSchema, ProductActivationSchema, SaleUpdateSchema
+from .models import Users, Product, Stock, Cart, CartItem, Purchase, DeliveryDetails
+from .schemas import UserDetails, StockUpdateRequest, AddToCartRequest, UpdateCartRequest, CreateCheckoutSessionRequest, \
+    ProductQuantityUpdateSchema, ProductActivationSchema, SaleUpdateSchema, DeliveryDetailsSchema
 from passlib.hash import bcrypt
 from app.tasks.tasks import send_email
 
 app = FastAPI()
 
 stripe.api_key = API_KEY
+
+# Настройка маршрута для статических файлов
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Получаем абсолютный путь к директории static
+static_dir = os.path.join(os.path.dirname(__file__), "static")
 
 # Монтируем директорию static
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -988,3 +995,46 @@ async def activate_product(data: ProductActivationSchema, db: AsyncSession = Dep
         await db.commit()
 
     return JSONResponse(status_code=200, content={"detail": "Product activation status updated successfully"})
+
+#Получение информации о доставке
+@app.get("/ship", response_model=DeliveryDetailsSchema)
+async def get_delivery_details(
+    purchase_id: int = Query(..., description="ID покупки"),
+    db: AsyncSession = Depends(get_db),
+    authorization: str = Header(None)
+):
+
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+
+    token = authorization.split(" ")[1]
+    current_user_id = get_current_user_id(token)
+
+    if current_user_id is None:
+        raise HTTPException(status_code=403, detail="Unauthorized access")
+
+    user = await db.execute(select(Users).where(Users.id == current_user_id))
+    user = user.scalar_one_or_none()
+
+    if user is None or user.user_type != 'seller':
+        raise HTTPException(status_code=403, detail="Unauthorized access")
+
+
+    delivery_details = await db.execute(
+        select(DeliveryDetails)
+        .where(DeliveryDetails.purchase_id == purchase_id)
+    )
+
+    delivery_details = delivery_details.scalar_one_or_none()
+
+    if not delivery_details:
+        raise HTTPException(status_code=404, detail="Детали доставки не найдены")
+
+    return DeliveryDetailsSchema(
+        city=delivery_details.city,
+        street=delivery_details.street,
+        house_number=delivery_details.house_number,
+        apartment_number=delivery_details.apartment_number,
+        recipient_name=delivery_details.recipient_name,
+        phone=delivery_details.phone
+    )

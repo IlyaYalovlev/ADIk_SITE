@@ -157,6 +157,7 @@ class DeliveryDetailsCreate(BaseModel):
         orm_mode = True
 
 class DeliveryDetailsС(BaseModel):
+    purchase_id: int
     city: str
     street: str
     house_number: str
@@ -205,3 +206,11 @@ class SaleUpdateSchema(BaseModel):
                 "tracking_number": "TRACK123456789"
             }
         }
+
+class DeliveryDetailsSchema(BaseModel):
+    city: str
+    street: str
+    house_number: str
+    apartment_number: str
+    recipient_name: str
+    phone: str
