@@ -32,11 +32,7 @@ class UserCreate(BaseModel):
         from_attributes = True
         protected_namespaces = ()
 
-class User(UserBase):
 
-    class Config:
-        from_attributes = True
-        protected_namespaces = ()
 
 # Stock Schemas
 class StockBase(BaseModel):
@@ -50,40 +46,9 @@ class StockBase(BaseModel):
 class StockCreate(StockBase):
     pass
 
-class Stock(StockBase):
-    id: int
 
-    class Config:
-        from_attributes = True
-        protected_namespaces = ()
-
-# Product Schemas
-class ProductBase(BaseModel):
-    model_name: str = Field(alias='model_name')
-    gender: str
-    image_side_url: Optional[str] = None
-    image_top_url: Optional[str] = None
-    image_34_url: Optional[str] = None
-    class Config:
-        protected_namespaces = ('model_',)
-
-class ProductCreate(ProductBase):
-    pass
-
-class Product(ProductBase):
-    id: int
-
-    class Config:
-        from_attributes = True
-        protected_namespaces = ()
 
 # Purchase Schemas
-class PurchaseBase(BaseModel):
-    customer_id: int
-    seller_id: int
-    stock_id: int
-    quantity: int
-    total_price: Decimal
 
 class PurchaseCreate(BaseModel):
     customer_id: int
@@ -96,12 +61,7 @@ class PurchaseCreate(BaseModel):
     class Config:
         from_attributes = True
 
-class Purchase(PurchaseCreate):
-    id: int
-    purchase_date: datetime
 
-    class Config:
-        from_attributes: True
 
 
 class UserDetails(BaseModel):
@@ -139,10 +99,6 @@ class UpdateCartRequest(BaseModel):
     cartitem_id: int
     quantity: int
 
-class PaymentRequest(BaseModel):
-    amount: int
-    currency: str
-    payment_method: str
 
 class DeliveryDetailsCreate(BaseModel):
     customer_id: int
