@@ -865,6 +865,7 @@ async def payment_success(request: Request, session_id: str = Query(...), db: As
 async def payment_cancel(error: str = Query(None)):
     return RedirectResponse(url=f"/order?error={error}")
 
+
 # Страница администрирования
 @app.get("/admin", response_class=HTMLResponse)
 async def admin(request: Request):
