@@ -1,81 +1,58 @@
 import asyncio
 import hashlib
-import json
 import os
-import uuid
-from datetime import datetime
-
-import aiofiles
-from decimal import Decimal
-from typing import Optional, List, Dict, Any
-
+from typing import Optional, List
 import stripe
-from fastapi import HTTPException, status, UploadFile, File, Cookie
+from fastapi import status, UploadFile, File
 from jwt.exceptions import ExpiredSignatureError
 from fastapi import Header
 from jwt import decode as jwt_decode
-from fastapi import FastAPI, Depends, HTTPException, Form, Request,  Query
+from fastapi import FastAPI, Depends, HTTPException, Form, Request, Query
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
-from sqlalchemy.sql.functions import user
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from fastapi import Response
 from config import SECRET, API_KEY
-from . import schemas, crud
+from . import schemas
 from redis import asyncio as aioredis
 from .auth import create_access_token, get_current_user_id, generate_confirmation_token, confirm_token
-from .crud import get_popular_products, update_customer, update_seller, update_stock, get_mens_shoes, get_womens_shoes, \
-    get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products, \
-    get_products, paginate_products, save_image, get_cart_items_total_quantity_by_cart_id, get_cart_items_by_cart_id, \
-    get_product_id_by_stock_id, get_stock_item, create_purchase, create_purchase_full, get_purchase, decimal_to_float
+from .crud import get_popular_products, get_mens_shoes, get_womens_shoes, get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products, get_products, paginate_products, save_image, get_cart_items_total_quantity_by_cart_id, get_cart_items_by_cart_id, create_purchase_full, get_purchase, decimal_to_float
 from .database import get_db
 from .models import Users, Product, Stock, Cart, CartItem, Purchase
-from .schemas import UserDetails, StockUpdateRequest, AddToCartRequest, UpdateCartRequest, PaymentRequest, OrderDetails, \
-    CreateCheckoutSessionRequest, ProductQuantityUpdateSchema, ProductActivationSchema, SaleUpdateSchema
+from .schemas import UserDetails, StockUpdateRequest, AddToCartRequest, UpdateCartRequest, CreateCheckoutSessionRequest, ProductQuantityUpdateSchema, ProductActivationSchema, SaleUpdateSchema
 from passlib.hash import bcrypt
 from app.tasks.tasks import send_email
-
-
-
 
 app = FastAPI()
 
 stripe.api_key = API_KEY
 
-# Настройка маршрута для статических файлов
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# Получаем абсолютный путь к директории static
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-
 # Монтируем директорию static
+static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-
 
 # Подключаем Jinja2 templates
 templates = Jinja2Templates(directory="app/templates")
 
 redis = aioredis.from_url("redis://localhost:6379", encoding="utf-8", decode_responses=True)
 
-
 SECRET_KEY = SECRET
 ALGORITHM = "HS256"
 
+# Функция для генерации ключа кэша
 def generate_cache_key(request: Request) -> str:
     url = str(request.url)
     return hashlib.md5(url.encode()).hexdigest()
 
+# Асинхронная функция для рендеринга шаблонов
 async def render_template(template_name: str, context: dict) -> str:
     loop = asyncio.get_event_loop()
     content = await loop.run_in_executor(None, templates.get_template(template_name).render, context)
     return content
-
 
 # Маршрут для отображения формы авторизации
 @app.get("/login", response_class=HTMLResponse)
@@ -95,7 +72,7 @@ async def login(request: Request, email: str = Form(...), password: str = Form(.
     else:
         return JSONResponse(status_code=401, content={"error": "Неверные учетные данные"})
 
-
+# Обработка смены пароля
 @app.post("/change-password")
 async def change_password(request: Request, old_password: str = Form(...), new_password: str = Form(...), db: AsyncSession = Depends(get_db)):
     authorization = request.headers.get('Authorization')
@@ -121,6 +98,7 @@ async def change_password(request: Request, old_password: str = Form(...), new_p
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
+# Получение информации о пользователе
 @app.get("/user-info", response_model=UserDetails)
 async def read_user_info(request: Request, db: AsyncSession = Depends(get_db)):
     headers = request.headers
@@ -134,7 +112,7 @@ async def read_user_info(request: Request, db: AsyncSession = Depends(get_db)):
         user_id = int(payload.get("sub"))
         user = await get_user_by_id(db, user_id)
 
-        # Create a new token with a refreshed expiration time
+        # Создание нового токена с обновленным временем истечения
         new_token = create_access_token(data={"sub": str(user_id)})
 
         return JSONResponse(content={
@@ -147,10 +125,7 @@ async def read_user_info(request: Request, db: AsyncSession = Depends(get_db)):
     except ExpiredSignatureError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT token has expired")
 
-
-
-
-# Обновление маршрута для главной страницы
+# Главная страница
 @app.get("/", response_class=HTMLResponse)
 async def read_index(request: Request, db: AsyncSession = Depends(get_db)):
     cache_key = generate_cache_key(request)
@@ -164,13 +139,12 @@ async def read_index(request: Request, db: AsyncSession = Depends(get_db)):
     await redis.setex(cache_key, 3600, rendered_content)  # Кэширование на 1 час
     return HTMLResponse(content=rendered_content)
 
-
-
-
-# Обновление маршрута для профиля продавца
+# Страница профиля продавца
 @app.get("/profile_seller/{user_id}", response_class=HTMLResponse)
 async def profile_seller(user_id: int, request: Request):
     return templates.TemplateResponse("profile_seller.html", {"request": request})
+
+# API для профиля продавца
 @app.get("/api/profile_seller/{user_id}", response_class=JSONResponse)
 async def api_profile_seller(user_id: int, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -187,7 +161,7 @@ async def api_profile_seller(user_id: int, db: AsyncSession = Depends(get_db), a
         if user.user_type != 'seller':
             return JSONResponse(status_code=403, content={"detail": "Unauthorized access"})
 
-        # Get seller sales and products
+        # Получаем продажи и продукты продавца
         sales = await get_seller_sales(user_id, db)
         products = await get_seller_products(user_id, db)
         response_data = {
@@ -208,6 +182,7 @@ async def api_profile_seller(user_id: int, db: AsyncSession = Depends(get_db), a
     except ExpiredSignatureError:
         return JSONResponse(status_code=401, content={"detail": "JWT token has expired"})
 
+# Обновление данных о продаже
 @app.post("/update-sale", response_class=JSONResponse)
 async def update_sale(data: SaleUpdateSchema, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -229,12 +204,12 @@ async def update_sale(data: SaleUpdateSchema, db: AsyncSession = Depends(get_db)
 
     return JSONResponse(status_code=200, content={"detail": "Sale updated successfully"})
 
-
-# Обновление маршрута для профиля покупателя
+# Страница профиля покупателя
 @app.get("/profile_customer/{user_id}", response_class=HTMLResponse)
 async def profile_customer(user_id: int, request: Request):
     return templates.TemplateResponse("profile_customer.html", {"request": request})
 
+# API для профиля покупателя
 @app.get("/api/profile_customer/{user_id}", response_class=JSONResponse)
 async def api_profile_customer(user_id: int, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -251,7 +226,7 @@ async def api_profile_customer(user_id: int, db: AsyncSession = Depends(get_db),
         if user.user_type != 'customer':
             return JSONResponse(status_code=403, content={"detail": "Unauthorized access"})
 
-        # Get customer purchases
+        # Получаем покупки покупателя
         purchases = await get_customer_purchases(user_id, db)
         response_data = {
             "user": {
@@ -271,8 +246,7 @@ async def api_profile_customer(user_id: int, db: AsyncSession = Depends(get_db),
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
-
-# Маршрут для мужской обуви
+# Страница мужской обуви
 @app.get("/mens-shoes", response_class=HTMLResponse)
 @app.get("/mens-shoes/{page}", response_class=HTMLResponse)
 async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db), min_price: float = Query(None), max_price: float = Query(None), sizes: str = Query(None), sort: str = Query(None)):
@@ -299,6 +273,7 @@ async def mens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends
     await redis.setex(cache_key, 3600, rendered_content)  # Кэширование на 1 час
     return HTMLResponse(content=rendered_content)
 
+# Страница женской обуви
 @app.get("/womens-shoes", response_class=HTMLResponse)
 @app.get("/womens-shoes/{page}", response_class=HTMLResponse)
 async def womens_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db), min_price: float = Query(None), max_price: float = Query(None), sizes: str = Query(None), sort: str = Query(None)):
@@ -325,6 +300,7 @@ async def womens_shoes(request: Request, page: int = 1, db: AsyncSession = Depen
     await redis.setex(cache_key, 3600, rendered_content)  # Кэширование на 1 час
     return HTMLResponse(content=rendered_content)
 
+# Страница детской обуви
 @app.get("/kids-shoes", response_class=HTMLResponse)
 @app.get("/kids-shoes/{page}", response_class=HTMLResponse)
 async def kids_shoes(request: Request, page: int = 1, db: AsyncSession = Depends(get_db), min_price: float = Query(None), max_price: float = Query(None), sizes: str = Query(None), sort: str = Query(None)):
@@ -351,12 +327,10 @@ async def kids_shoes(request: Request, page: int = 1, db: AsyncSession = Depends
     await redis.setex(cache_key, 3600, rendered_content)  # Кэширование на 1 час
     return HTMLResponse(content=rendered_content)
 
-
 # Маршрут для отображения формы восстановления пароля
 @app.get("/forgot-password", response_class=HTMLResponse)
 async def forgot_password_form(request: Request):
     return templates.TemplateResponse("forgot_password.html", {"request": request})
-
 
 # Маршрут для обработки формы восстановления пароля
 @app.post("/forgot-password", response_class=HTMLResponse)
@@ -369,13 +343,12 @@ async def forgot_password(request: Request, email: str = Form(...), db: AsyncSes
         send_email.delay(email, msg_text)
     return templates.TemplateResponse("forgot_password_confirmation.html", {"request": request})
 
-
 # Маршрут для отображения формы смены пароля
 @app.get("/reset-password/{token}", response_class=HTMLResponse)
 async def reset_password_form(request: Request, token: str):
     return templates.TemplateResponse("reset_password.html", {"request": request, "token": token})
 
-
+# Обработка смены пароля по токену
 @app.post("/reset-password/{token}", response_class=HTMLResponse)
 async def reset_password(request: Request, token: str, new_password: str = Form(...), confirm_password: str = Form(...),
                          db: AsyncSession = Depends(get_db)):
@@ -397,13 +370,14 @@ async def reset_password(request: Request, token: str, new_password: str = Form(
 
     user.set_password(new_password)
 
-
     return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
 # Маршрут для отображения формы регистрации
 @app.get("/register", response_class=HTMLResponse)
 async def register_form(request: Request):
     return templates.TemplateResponse("register.html", {"request": request})
+
+# Обработка регистрации нового пользователя
 @app.post("/register")
 async def register_user(
         first_name: str = Form(...),
@@ -448,6 +422,7 @@ async def register_user(
 
     return {"message": "Перейдите в почту для завершения регистрации"}
 
+# Подтверждение email пользователя
 @app.get("/confirm/{token}", response_class=HTMLResponse)
 async def confirm_email(token: str, db: AsyncSession = Depends(get_db)):
     email = confirm_token(token)
@@ -465,13 +440,12 @@ async def confirm_email(token: str, db: AsyncSession = Depends(get_db)):
 
     return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
-
 # Определяем endpoint для обслуживания favicon
 @app.get("/favicon.ico")
 async def favicon():
     return FileResponse("app/static/favicon.ico")
 
-
+# Страница продукта
 @app.get("/product/{product_id}", response_class=HTMLResponse)
 async def product_page(request: Request, product_id: str, db: AsyncSession = Depends(get_db)):
     # Получаем информацию о продукте
@@ -509,17 +483,14 @@ async def product_page(request: Request, product_id: str, db: AsyncSession = Dep
         "category": product.gender
     })
 
-
-
+# Страница добавления нового продукта
 @app.get("/new-product", response_class=HTMLResponse)
 async def new_product_form(request: Request, db: AsyncSession = Depends(get_db)):
     products = await get_products(db)
     product_list = [{"model_name": product.model_name, "image_side_url": product.image_side_url, "product_id": product.product_id, "price":product.price} for product in products]
     return templates.TemplateResponse("new_product.html", {"request": request, "products": product_list})
 
-
-
-
+# Обработка добавления нового продукта
 @app.post("/new-product", response_class=HTMLResponse)
 async def add_new_product(
     request: Request,
@@ -561,8 +532,8 @@ async def add_new_product(
             seller_id=user_id,
             size=float(size),
             quantity=int(quantity),
-            price=product.price,  # Use the product price
-            discount_price=price  # Initially no discount
+            price=product.price,  # Используем цену продукта
+            discount_price=price  # Изначально без скидки
         )
         db.add(new_stock)
     await db.commit()
@@ -571,12 +542,12 @@ async def add_new_product(
     product_list = [{"model_name": product.model_name} for product in products]
     return templates.TemplateResponse("new_product.html", {"request": request, "products": product_list, "message": "Product added successfully!"})
 
+# Страница создания нового продукта
 @app.get("/create_product", response_class=HTMLResponse)
 async def create_product(request: Request):
     return templates.TemplateResponse("create_product.html", {"request": request})
 
-
-
+# Обработка создания нового продукта
 @app.post("/create_product", response_class=HTMLResponse)
 async def create_product_form(
     request: Request,
@@ -605,7 +576,7 @@ async def create_product_form(
     except Exception:
         return RedirectResponse(url="/login", status_code=307)
 
-    # Save images
+    # Сохранение изображений
     side_view_url = await save_image(side_view, 'static/uploads')
     top_view_url = await save_image(top_view, 'static/uploads')
     three_quarter_view_url = await save_image(three_quarter_view, 'static/uploads')
@@ -614,7 +585,7 @@ async def create_product_form(
     elif gender.lower() == 'женские':
         gender = 'W'
     elif gender.lower() == 'унисекс':
-            gender = 'U'
+        gender = 'U'
     elif gender.lower() == 'детские':
         gender = 'K'
     new_product = Product(
@@ -632,6 +603,7 @@ async def create_product_form(
 
     return templates.TemplateResponse("create_product.html", {"request": request, "message": "Product created successfully!"})
 
+# Обновление продуктов
 @app.post("/update-products", response_class=JSONResponse)
 async def update_products(request: StockUpdateRequest, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -642,7 +614,6 @@ async def update_products(request: StockUpdateRequest, db: AsyncSession = Depend
 
     try:
         for product in request.products:
-            print(f"Updating stock: {product.stock_id} with price: {product.price} and stock: {product.stock}")
             stmt = select(Stock).where(Stock.id == product.stock_id, Stock.seller_id == current_user_id)
             result = await db.execute(stmt)
             stock_entry = result.scalar_one_or_none()
@@ -651,17 +622,13 @@ async def update_products(request: StockUpdateRequest, db: AsyncSession = Depend
                 stock_entry.discount_price = product.price
                 stock_entry.quantity = product.stock
                 db.add(stock_entry)
-            else:
-                print(f"No stock entry found for stock_id: {product.stock_id} and seller_id: {current_user_id}")
-
         await db.commit()
         return JSONResponse(content={"message": "Products updated successfully"})
     except Exception as e:
         await db.rollback()
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
-
-
+# Предложения для поиска
 @app.get("/search-suggestions", response_class=JSONResponse)
 async def search_suggestions(query: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
@@ -674,6 +641,7 @@ async def search_suggestions(query: str, db: AsyncSession = Depends(get_db)):
     suggestions = [{"model_name": product.model_name} for product in products]
     return JSONResponse(content=suggestions)
 
+# Страница поиска
 @app.get("/search", response_class=HTMLResponse)
 async def search_page(request: Request, query: str, db: AsyncSession = Depends(get_db)):
     subquery = (
@@ -698,7 +666,6 @@ async def search_page(request: Request, query: str, db: AsyncSession = Depends(g
     )
     products_and_stocks = result.unique().fetchall()
 
-    # Создание списка продуктов с объединенными данными
     products = []
     for product, stock in products_and_stocks:
         products.append({
@@ -713,7 +680,7 @@ async def search_page(request: Request, query: str, db: AsyncSession = Depends(g
 
     return templates.TemplateResponse("search.html", {"request": request, "products": products, "query": query})
 
-
+# Создание или получение корзины
 @app.post("/cart", response_class=JSONResponse)
 async def create_or_get_cart(request: Request, db: AsyncSession = Depends(get_db), user_id: Optional[int] = None,
                              session_id: Optional[str] = None):
@@ -740,7 +707,7 @@ async def create_or_get_cart(request: Request, db: AsyncSession = Depends(get_db
         total_items = await get_cart_items_total_quantity_by_cart_id(cart.id, db)
     return JSONResponse(status_code=200, content={"cart_id": cart.id, "total_items": total_items})
 
-
+# Добавление товара в корзину
 @app.post("/cart/items", response_class=JSONResponse)
 async def add_to_cart(request: AddToCartRequest, db: AsyncSession = Depends(get_db)):
     if request.user_id:
@@ -756,17 +723,14 @@ async def add_to_cart(request: AddToCartRequest, db: AsyncSession = Depends(get_
 
     total_items = await get_cart_items_total_quantity_by_cart_id(cart.id, db)
 
-    # Check if CartItem with the same cart_id and stock_id exists
     existing_cart_item = (await db.execute(
         select(CartItem).where(CartItem.cart_id == cart.id, CartItem.stock_id == request.stock_id)
     )).scalars().first()
 
     if existing_cart_item:
-        # If exists, update quantity
         existing_cart_item.quantity += request.quantity
         total_items += request.quantity
     else:
-        # If not exists, create a new CartItem
         cart_item = CartItem(cart_id=cart.id, stock_id=request.stock_id, quantity=request.quantity)
         db.add(cart_item)
         total_items += request.quantity
@@ -775,7 +739,7 @@ async def add_to_cart(request: AddToCartRequest, db: AsyncSession = Depends(get_
 
     return JSONResponse(status_code=200, content={"total_items": total_items})
 
-
+# Обновление товара в корзине
 @app.post("/cart/items/update", response_class=JSONResponse)
 async def update_cart_item(request: UpdateCartRequest, db: AsyncSession = Depends(get_db)):
 
@@ -792,7 +756,7 @@ async def update_cart_item(request: UpdateCartRequest, db: AsyncSession = Depend
     await db.commit()
     return JSONResponse(status_code=200, content={"detail": "Quantity updated"})
 
-
+# Получение товаров в корзине
 @app.post("/cart/items/details", response_class=JSONResponse)
 async def get_cart_items(request: Request, user_id: Optional[int] = None, session_id: Optional[str] = None, db: AsyncSession = Depends(get_db)):
     data = await request.json()
@@ -803,7 +767,6 @@ async def get_cart_items(request: Request, user_id: Optional[int] = None, sessio
         cart = (await db.execute(select(Cart).where(Cart.user_id == user_id))).scalars().first()
     else:
         cart = (await db.execute(select(Cart).where(Cart.session_id == session_id))).scalars().first()
-
 
     if not cart:
         return JSONResponse(status_code=200, content={"items": [], "total": 0})
@@ -832,11 +795,12 @@ async def get_cart_items(request: Request, user_id: Optional[int] = None, sessio
 
     return JSONResponse(status_code=200, content=response_content)
 
-
+# Страница оформления заказа
 @app.get("/order", response_class=HTMLResponse)
 async def create_product(request: Request):
     return templates.TemplateResponse("order.html", {"request": request})
 
+# Создание сессии для оформления заказа
 @app.post("/create-checkout-session")
 async def create_checkout_session(request: CreateCheckoutSessionRequest):
     try:
@@ -866,20 +830,15 @@ async def create_checkout_session(request: CreateCheckoutSessionRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+# Обработка успешного платежа
 @app.get("/success", response_class=HTMLResponse)
 async def payment_success(request: Request, session_id: str = Query(...), db: AsyncSession = Depends(get_db)):
     try:
-        # Получение данных сессии Stripe
         stripe_session = stripe.checkout.Session.retrieve(session_id)
         user_id = stripe_session.metadata['user_id']
-
-        # Получение payment_intent_id
         payment_intent_id = stripe_session.payment_intent
-
-        # Извлечение данных доставки из metadata
         delivery_details = schemas.DeliveryDetailsCreate.parse_raw(stripe_session.metadata['delivery_details'])
 
-        # Проверка и создание заказа
         await create_purchase_full(schemas.OrderDetails(
             user_id=user_id,
             payment_intent_id=payment_intent_id,
@@ -894,16 +853,17 @@ async def payment_success(request: Request, session_id: str = Query(...), db: As
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+# Обработка отмены платежа
 @app.get("/cancel")
 async def payment_cancel(error: str = Query(None)):
-    # Логика для обработки отмены платежа
     return RedirectResponse(url=f"/order?error={error}")
 
-
+# Страница администрирования
 @app.get("/admin", response_class=HTMLResponse)
 async def admin(request: Request):
     return templates.TemplateResponse("admin.html", {"request": request})
 
+# API для администрирования
 @app.get("/api/admin", response_class=JSONResponse)
 async def api_admin(db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -911,8 +871,6 @@ async def api_admin(db: AsyncSession = Depends(get_db), authorization: str = Hea
 
     token = authorization.split(" ")[1]
     current_user_id = get_current_user_id(token)
-
-
 
     if current_user_id is None:
         raise HTTPException(status_code=403, detail="Unauthorized access")
@@ -972,6 +930,7 @@ async def api_admin(db: AsyncSession = Depends(get_db), authorization: str = Hea
     response_data = decimal_to_float(response_data)
     return JSONResponse(content=response_data)
 
+# Обновление количества товара на складе
 @app.post("/update-stock", response_class=JSONResponse)
 async def update_stock(update_data: ProductQuantityUpdateSchema, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -999,6 +958,7 @@ async def update_stock(update_data: ProductQuantityUpdateSchema, db: AsyncSessio
     else:
         raise HTTPException(status_code=404, detail="Stock not found")
 
+# Активация или деактивация продукта
 @app.post("/activate-product", response_class=JSONResponse)
 async def activate_product(data: ProductActivationSchema, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
