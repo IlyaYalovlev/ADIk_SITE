@@ -1,6 +1,8 @@
+from fastapi import HTTPException
 from jwt import decode as jwt_decode, ExpiredSignatureError, InvalidTokenError
 from datetime import datetime, timedelta
 import jwt
+from fastapi import status
 from itsdangerous import URLSafeTimedSerializer
 from config import SECRET
 
@@ -37,3 +39,11 @@ def confirm_token(token: str, expiration=3600):
     except:
         return False
     return email
+
+async def check_auth_and_get_user_id(authorization: str):
+    if authorization is None or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid Authorization header")
+
+    token = authorization.split(" ")[1]
+    return get_current_user_id(token)
+

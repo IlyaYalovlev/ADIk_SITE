@@ -1,12 +1,9 @@
-import asyncio
-import hashlib
 import os
 from typing import Optional, List
 import stripe
 from fastapi import status, UploadFile, File
 from jwt.exceptions import ExpiredSignatureError
 from fastapi import Header
-from jwt import decode as jwt_decode
 from fastapi import FastAPI, Depends, HTTPException, Form, Request, Query
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,10 +15,16 @@ from fastapi.responses import FileResponse
 
 from config import SECRET, API_KEY
 from . import schemas
-from redis import asyncio as aioredis
-from .auth import create_access_token, get_current_user_id, generate_confirmation_token, confirm_token
-from .crud import get_popular_products, get_mens_shoes, get_womens_shoes, get_kids_shoes, get_user_by_id, get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products, get_products, paginate_products, save_image, get_cart_items_total_quantity_by_cart_id, get_cart_items_by_cart_id, create_purchase_full, get_purchase, decimal_to_float
+from .auth import create_access_token, generate_confirmation_token, confirm_token, \
+    check_auth_and_get_user_id
+from .cashe import generate_cache_key, redis, render_template
+from .crud import get_popular_products, get_mens_shoes, get_womens_shoes, get_kids_shoes, get_user_by_id, \
+    get_user_by_email, get_customer_purchases, get_seller_sales, get_seller_products, get_products, paginate_products, \
+    save_image, get_cart_items_total_quantity_by_cart_id, get_cart_items_by_cart_id, create_purchase_full, get_purchase,\
+    get_user_by_phone, get_product_by_id, get_suggestions, \
+    get_cart_by_userid, get_cart_by_sessionid, get_stock_item, get_delivery_details_by_purchase_id
 from .database import get_db
+from .func import decimal_to_float
 from .models import Users, Product, Stock, Cart, CartItem, Purchase, DeliveryDetails
 from .schemas import UserDetails, StockUpdateRequest, AddToCartRequest, UpdateCartRequest, CreateCheckoutSessionRequest, \
     ProductQuantityUpdateSchema, ProductActivationSchema, SaleUpdateSchema, DeliveryDetailsSchema
@@ -45,21 +48,10 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 # Подключаем Jinja2 templates
 templates = Jinja2Templates(directory="app/templates")
 
-redis = aioredis.from_url("redis://localhost:6379", encoding="utf-8", decode_responses=True)
 
 SECRET_KEY = SECRET
 ALGORITHM = "HS256"
 
-# Функция для генерации ключа кэша
-def generate_cache_key(request: Request) -> str:
-    url = str(request.url)
-    return hashlib.md5(url.encode()).hexdigest()
-
-# Асинхронная функция для рендеринга шаблонов
-async def render_template(template_name: str, context: dict) -> str:
-    loop = asyncio.get_event_loop()
-    content = await loop.run_in_executor(None, templates.get_template(template_name).render, context)
-    return content
 
 # Маршрут для отображения формы авторизации
 @app.get("/login", response_class=HTMLResponse)
@@ -68,7 +60,7 @@ async def login_form(request: Request):
 
 # Обработка данных авторизации
 @app.post("/login")
-async def login(request: Request, email: str = Form(...), password: str = Form(...), db: AsyncSession = Depends(get_db)):
+async def login(email: str = Form(...), password: str = Form(...), db: AsyncSession = Depends(get_db)):
     user = await get_user_by_email(db, email)
     if user and user.check_password(password) and user.is_active and user.user_type == 'admin':
         access_token = create_access_token(data={"sub": str(user.id)})
@@ -81,15 +73,9 @@ async def login(request: Request, email: str = Form(...), password: str = Form(.
 
 # Обработка смены пароля
 @app.post("/change-password")
-async def change_password(request: Request, old_password: str = Form(...), new_password: str = Form(...), db: AsyncSession = Depends(get_db)):
-    authorization = request.headers.get('Authorization')
-    if authorization is None or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid Authorization header")
-
-    token = authorization.split(" ")[1]
+async def change_password(old_password: str = Form(...), new_password: str = Form(...), db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
+    user_id = await check_auth_and_get_user_id(authorization)
     try:
-        payload = jwt_decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = int(payload.get("sub"))
         user = await get_user_by_id(db, user_id)
 
         if not user.check_password(old_password):
@@ -107,16 +93,9 @@ async def change_password(request: Request, old_password: str = Form(...), new_p
 
 # Получение информации о пользователе
 @app.get("/user-info", response_model=UserDetails)
-async def read_user_info(request: Request, db: AsyncSession = Depends(get_db)):
-    headers = request.headers
-    authorization = headers.get('authorization')
-    if authorization is None or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid Authorization header")
-
-    token = authorization.split(" ")[1]
+async def read_user_info(db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
+    user_id = await check_auth_and_get_user_id(authorization)
     try:
-        payload = jwt_decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = int(payload.get("sub"))
         user = await get_user_by_id(db, user_id)
 
         # Создание нового токена с обновленным временем истечения
@@ -148,17 +127,13 @@ async def read_index(request: Request, db: AsyncSession = Depends(get_db)):
 
 # Страница профиля продавца
 @app.get("/profile_seller/{user_id}", response_class=HTMLResponse)
-async def profile_seller(user_id: int, request: Request):
+async def profile_seller(request: Request):
     return templates.TemplateResponse("profile_seller.html", {"request": request})
 
 # API для профиля продавца
 @app.get("/api/profile_seller/{user_id}", response_class=JSONResponse)
 async def api_profile_seller(user_id: int, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        return JSONResponse(status_code=401, content={"detail": "Missing or invalid Authorization header"})
-
-    token = authorization.split(" ")[1]
-    current_user_id = get_current_user_id(token)
+    current_user_id = await check_auth_and_get_user_id(authorization)
 
     if current_user_id is None or current_user_id != user_id:
         return JSONResponse(status_code=403, content={"detail": "Unauthorized access"})
@@ -192,11 +167,7 @@ async def api_profile_seller(user_id: int, db: AsyncSession = Depends(get_db), a
 # Обновление данных о продаже
 @app.post("/update-sale", response_class=JSONResponse)
 async def update_sale(data: SaleUpdateSchema, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-
-    token = authorization.split(" ")[1]
-    current_user_id = get_current_user_id(token)
+    current_user_id = await check_auth_and_get_user_id(authorization)
 
     if current_user_id is None:
         raise HTTPException(status_code=403, detail="Unauthorized access")
@@ -219,12 +190,7 @@ async def profile_customer(user_id: int, request: Request):
 # API для профиля покупателя
 @app.get("/api/profile_customer/{user_id}", response_class=JSONResponse)
 async def api_profile_customer(user_id: int, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        return JSONResponse(status_code=401, content={"detail": "Missing or invalid Authorization header"})
-
-    token = authorization.split(" ")[1]
-    current_user_id = get_current_user_id(token)
-
+    current_user_id = await check_auth_and_get_user_id(authorization)
     if current_user_id is None or current_user_id != user_id:
         return JSONResponse(status_code=403, content={"detail": "Unauthorized access"})
 
@@ -399,13 +365,11 @@ async def register_user(
     if password != confirm_password:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пароли не совпадают")
 
-    email_exists = await db.execute(select(Users).where(Users.email == email))
-    email_exists = email_exists.scalars().first()
+    email_exists = await get_user_by_email(db, email)
     if email_exists:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email уже зарегистрирован")
 
-    phone_exists = await db.execute(select(Users).where(Users.phone == phone))
-    phone_exists = phone_exists.scalars().first()
+    phone_exists = await get_user_by_phone(db, phone)
     if phone_exists:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Телефон уже зарегистрирован")
 
@@ -436,8 +400,7 @@ async def confirm_email(token: str, db: AsyncSession = Depends(get_db)):
     if not email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Недействительная или просроченная ссылка")
 
-    user = await db.execute(select(Users).where(Users.email == email))
-    user = user.scalars().first()
+    user = await get_user_by_email(db, email)
     if not user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пользователь не найден")
 
@@ -456,8 +419,7 @@ async def favicon():
 @app.get("/product/{product_id}", response_class=HTMLResponse)
 async def product_page(request: Request, product_id: str, db: AsyncSession = Depends(get_db)):
     # Получаем информацию о продукте
-    product = await db.execute(select(Product).where(Product.product_id == product_id))
-    product = product.scalars().first()
+    product = await get_product_by_id(db, product_id)
 
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -502,21 +464,14 @@ async def new_product_form(request: Request, db: AsyncSession = Depends(get_db))
 async def add_new_product(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    model_name: str = Form(...),
     product_id: str = Form(...),
     sizes: List[str] = Form(...),
     quantities: List[str] = Form(...),
     price: float = Form(...),
     authorization: Optional[str] = Header(None)
 ):
-    if not authorization or not authorization.startswith("Bearer "):
-        return RedirectResponse(url="/login", status_code=307)
-
-    token = authorization.split(" ")[1]
-
+    user_id = await check_auth_and_get_user_id(authorization)
     try:
-        payload = jwt_decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = int(payload.get("sub"))
         user = await get_user_by_id(db, user_id)
         if not user or user.user_type != "seller":
             return RedirectResponse(url="/login", status_code=307)
@@ -525,8 +480,7 @@ async def add_new_product(
     except Exception:
         return RedirectResponse(url="/login", status_code=307)
 
-    product = await db.execute(select(Product).where(Product.product_id == product_id))
-    product = product.scalars().first()
+    product = await get_product_by_id(db, product_id)
     if not product:
         return RedirectResponse(url="/create_product", status_code=307)
 
@@ -539,8 +493,8 @@ async def add_new_product(
             seller_id=user_id,
             size=float(size),
             quantity=int(quantity),
-            price=product.price,  # Используем цену продукта
-            discount_price=price  # Изначально без скидки
+            price=product.price,
+            discount_price=price
         )
         db.add(new_stock)
     await db.commit()
@@ -568,13 +522,8 @@ async def create_product_form(
     three_quarter_view: UploadFile = File(...),
     authorization: Optional[str] = Header(None)
 ):
-    if not authorization or not authorization.startswith("Bearer "):
-        return RedirectResponse(url="/login", status_code=307)
-
-    token = authorization.split(" ")[1]
+    user_id = await check_auth_and_get_user_id(authorization)
     try:
-        payload = jwt_decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = int(payload.get("sub"))
         user = await get_user_by_id(db, user_id)
         if not user or user.user_type != "seller":
             return RedirectResponse(url="/login", status_code=307)
@@ -613,11 +562,7 @@ async def create_product_form(
 # Обновление продуктов
 @app.post("/update-products", response_class=JSONResponse)
 async def update_products(request: StockUpdateRequest, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        return JSONResponse(status_code=401, content={"detail": "Missing or invalid Authorization header"})
-
-    token = authorization.split(" ")[1]
-    current_user_id = get_current_user_id(token)
+    current_user_id = await check_auth_and_get_user_id(authorization)
 
     try:
         for product in request.products:
@@ -638,13 +583,7 @@ async def update_products(request: StockUpdateRequest, db: AsyncSession = Depend
 # Предложения для поиска
 @app.get("/search-suggestions", response_class=JSONResponse)
 async def search_suggestions(query: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(Product)
-        .join(Stock, Product.product_id == Stock.product_id)
-        .where(Product.model_name.ilike(f"%{query.lower()}%"))
-        .where(Stock.quantity > 0)
-    )
-    products = result.scalars().all()
+    products = await get_suggestions(db, query)
     suggestions = [{"model_name": product.model_name} for product in products]
     return JSONResponse(content=suggestions)
 
@@ -689,19 +628,16 @@ async def search_page(request: Request, query: str, db: AsyncSession = Depends(g
 
 # Создание или получение корзины
 @app.post("/cart", response_class=JSONResponse)
-async def create_or_get_cart(request: Request, db: AsyncSession = Depends(get_db), user_id: Optional[int] = None,
-                             session_id: Optional[str] = None):
+async def create_or_get_cart(request: Request, db: AsyncSession = Depends(get_db)):
     total_items = 1
     data = await request.json()
     user_id = data.get('user_id')
     session_id = data.get('session_id')
 
     if user_id:
-        cart = await db.execute(select(Cart).where(Cart.user_id == user_id))
+        cart = await get_cart_by_userid(db, user_id)
     else:
-        cart = await db.execute(select(Cart).where(Cart.session_id == session_id))
-
-    cart = cart.scalars().first()
+        cart = await get_cart_by_sessionid(db, session_id)
 
     if not cart:
         new_cart = Cart(user_id=user_id, session_id=session_id)
@@ -718,9 +654,9 @@ async def create_or_get_cart(request: Request, db: AsyncSession = Depends(get_db
 @app.post("/cart/items", response_class=JSONResponse)
 async def add_to_cart(request: AddToCartRequest, db: AsyncSession = Depends(get_db)):
     if request.user_id:
-        cart = (await db.execute(select(Cart).where(Cart.user_id == request.user_id))).scalars().first()
+        cart = await get_cart_by_userid(db, request.user_id)
     else:
-        cart = (await db.execute(select(Cart).where(Cart.session_id == request.session_id))).scalars().first()
+        cart = await get_cart_by_sessionid(db, request.session_id)
 
     if not cart:
         cart = Cart(user_id=request.user_id, session_id=request.session_id)
@@ -765,15 +701,15 @@ async def update_cart_item(request: UpdateCartRequest, db: AsyncSession = Depend
 
 # Получение товаров в корзине
 @app.post("/cart/items/details", response_class=JSONResponse)
-async def get_cart_items(request: Request, user_id: Optional[int] = None, session_id: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+async def get_cart_items(request: Request, db: AsyncSession = Depends(get_db)):
     data = await request.json()
     user_id = data.get('user_id')
     session_id = data.get('session_id')
 
     if user_id:
-        cart = (await db.execute(select(Cart).where(Cart.user_id == user_id))).scalars().first()
+        cart = await get_cart_by_userid(db, user_id)
     else:
-        cart = (await db.execute(select(Cart).where(Cart.session_id == session_id))).scalars().first()
+        cart = await get_cart_by_sessionid(db, session_id)
 
     if not cart:
         return JSONResponse(status_code=200, content={"items": [], "total": 0})
@@ -782,8 +718,8 @@ async def get_cart_items(request: Request, user_id: Optional[int] = None, sessio
     total = 0
     cart_items = await get_cart_items_by_cart_id(cart.id, db)
     for item in cart_items:
-        stock = (await db.execute(select(Stock).where(Stock.id == item.stock_id))).scalars().first()
-        product = (await db.execute(select(Product).where(Product.product_id == stock.product_id))).scalars().first()
+        stock = await get_stock_item(db, item.stock_id)
+        product = await get_product_by_id(db, stock.product_id)
 
         item_data = {
             "cartitem_id": item.id,
@@ -874,17 +810,12 @@ async def admin(request: Request):
 # API для администрирования
 @app.get("/api/admin", response_class=JSONResponse)
 async def api_admin(db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-
-    token = authorization.split(" ")[1]
-    current_user_id = get_current_user_id(token)
+    current_user_id = await check_auth_and_get_user_id(authorization)
 
     if current_user_id is None:
         raise HTTPException(status_code=403, detail="Unauthorized access")
 
-    user = await db.execute(select(Users).where(Users.id == current_user_id))
-    user = user.scalar_one_or_none()
+    user = await get_user_by_id(db, current_user_id)
 
     if user is None or user.user_type != 'admin':
         raise HTTPException(status_code=403, detail="Unauthorized access")
@@ -941,23 +872,17 @@ async def api_admin(db: AsyncSession = Depends(get_db), authorization: str = Hea
 # Обновление количества товара на складе
 @app.post("/update-stock", response_class=JSONResponse)
 async def update_stock(update_data: ProductQuantityUpdateSchema, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-
-    token = authorization.split(" ")[1]
-    current_user_id = get_current_user_id(token)
+    current_user_id = await check_auth_and_get_user_id(authorization)
 
     if current_user_id is None:
         raise HTTPException(status_code=403, detail="Unauthorized access")
 
-    user = await db.execute(select(Users).where(Users.id == current_user_id))
-    user = user.scalar_one_or_none()
+    user = await get_user_by_id(db, current_user_id)
 
     if user is None or user.user_type != 'admin':
         raise HTTPException(status_code=403, detail="Unauthorized access")
 
-    stock = await db.execute(select(Stock).where(Stock.id == update_data.stock_id))
-    stock = stock.scalar_one_or_none()
+    stock = await get_stock_item(db, update_data.stock_id)
     if stock:
         stock.quantity = update_data.quantity
         db.add(stock)
@@ -969,23 +894,17 @@ async def update_stock(update_data: ProductQuantityUpdateSchema, db: AsyncSessio
 # Активация или деактивация продукта
 @app.post("/activate-product", response_class=JSONResponse)
 async def activate_product(data: ProductActivationSchema, db: AsyncSession = Depends(get_db), authorization: str = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-
-    token = authorization.split(" ")[1]
-    current_user_id = get_current_user_id(token)
+    current_user_id = await check_auth_and_get_user_id(authorization)
 
     if current_user_id is None:
         raise HTTPException(status_code=403, detail="Unauthorized access")
 
-    user = await db.execute(select(Users).where(Users.id == current_user_id))
-    user = user.scalar_one_or_none()
+    user = await get_user_by_id(db, current_user_id)
 
     if user is None or user.user_type != 'admin':
         raise HTTPException(status_code=403, detail="Unauthorized access")
 
-    product = await db.execute(select(Product).where(Product.product_id == data.product_id))
-    product = product.scalar_one_or_none()
+    product = await get_product_by_id(db, data.product_id)
 
     if data.is_active:
         product.is_active = data.is_active
@@ -1004,29 +923,18 @@ async def get_delivery_details(
     db: AsyncSession = Depends(get_db),
     authorization: str = Header(None)
 ):
-
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-
-    token = authorization.split(" ")[1]
-    current_user_id = get_current_user_id(token)
+    current_user_id = await check_auth_and_get_user_id(authorization)
 
     if current_user_id is None:
         raise HTTPException(status_code=403, detail="Unauthorized access")
 
-    user = await db.execute(select(Users).where(Users.id == current_user_id))
-    user = user.scalar_one_or_none()
+    user = await get_user_by_id(db, current_user_id)
 
     if user is None or user.user_type != 'seller':
         raise HTTPException(status_code=403, detail="Unauthorized access")
 
 
-    delivery_details = await db.execute(
-        select(DeliveryDetails)
-        .where(DeliveryDetails.purchase_id == purchase_id)
-    )
-
-    delivery_details = delivery_details.scalar_one_or_none()
+    delivery_details = await get_delivery_details_by_purchase_id(db, purchase_id)
 
     if not delivery_details:
         raise HTTPException(status_code=404, detail="Детали доставки не найдены")

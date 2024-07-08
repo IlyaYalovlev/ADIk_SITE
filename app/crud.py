@@ -22,13 +22,6 @@ from .models import Stock, Product, Users, Purchase, Cart, CartItem, DeliveryDet
 from .schemas import DeliveryDetailsCreate
 
 # User CRUD operations
-async def create_user(db: AsyncSession, user: schemas.UserCreate):
-    db_user = models.Users(**user.dict())
-    db.add(db_user)
-    await db.commit()
-    await db.refresh(db_user)
-    return db_user
-
 async def get_user_by_id(db: AsyncSession, user_id: int):
     result = await db.execute(select(models.Users).filter(models.Users.id == user_id))
     return result.scalars().first()
@@ -37,9 +30,9 @@ async def get_user_by_email(db: AsyncSession, email: str):
     result = await db.execute(select(models.Users).filter(models.Users.email == email))
     return result.scalars().first()
 
-async def get_users(db: AsyncSession, skip: int = 0, limit: int = 10):
-    result = await db.execute(select(models.Users).offset(skip).limit(limit))
-    return result.scalars().all()
+async def get_user_by_phone(db: AsyncSession, phone: str):
+    result = await db.execute(select(models.Users).filter(models.Users.phone == phone))
+    return result.scalars().first()
 
 
 # Stock CRUD operations
@@ -47,9 +40,6 @@ async def get_stock_item(db: AsyncSession, stock_id: int):
     result = await db.execute(select(models.Stock).filter(models.Stock.id == stock_id))
     return result.scalars().first()
 
-async def get_stock_items(db: AsyncSession, skip: int = 0, limit: int = 10):
-    result = await db.execute(select(models.Stock).offset(skip).limit(limit))
-    return result.scalars().all()
 
 async def create_stock_item(db: AsyncSession, stock: schemas.StockCreate):
     db_stock = models.Stock(**stock.dict())
@@ -326,29 +316,6 @@ async def get_seller_products(user_id: int, db: AsyncSession):
         product_list.append(product_data)
     return product_list
 
-async def send_email(email: str, msg_text: str):
-    login = EMAIL
-    password = PASSWORD
-    msg = MIMEText(f'{msg_text}', 'plain', 'utf-8')
-    msg['Subject'] = Header('Adik_store', 'utf-8')
-    msg['From'] = login
-    msg['To'] = email
-
-    smtp_server = 'smtp.yandex.ru'
-    smtp_port = 587
-
-    try:
-        await aiosmtplib.send(
-            msg,
-            hostname=smtp_server,
-            port=smtp_port,
-            start_tls=True,
-            username=login,
-            password=password,
-        )
-        print("Email sent successfully")
-    except Exception as e:
-        print(f"Failed to send email: {e}")
 
 async def paginate_products(products: List, page: int, per_page: int) -> Tuple[List, int]:
     """
@@ -488,17 +455,34 @@ async def create_purchase_full(order_details: schemas.OrderDetails, db: AsyncSes
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-def decimal_to_float(data):
-    """
-    Преобразует значения Decimal в float для сериализации.
-    """
-    if isinstance(data, dict):
-        return {k: decimal_to_float(v) for k, v in data.items()}
-    elif isinstance(data, list):
-        return [decimal_to_float(v) for v in data]
-    elif isinstance(data, Decimal):
-        return float(data)
-    elif isinstance(data, datetime):
-        return data.isoformat()
-    else:
-        return data
+
+
+async def get_product_by_id(db: AsyncSession, product_id: str):
+    result = await db.execute(select(Product).where(Product.product_id == product_id))
+    return result.scalars().first()
+
+
+async def get_suggestions(db: AsyncSession, query: str):
+    result = await db.execute(
+        select(Product)
+        .join(Stock, Product.product_id == Stock.product_id)
+        .where(Product.model_name.ilike(f"%{query.lower()}%"))
+        .where(Stock.quantity > 0)
+    )
+    return result.scalars().first()
+
+async def get_cart_by_userid(db: AsyncSession, user_id: str):
+    result = await db.execute(select(Cart).where(Cart.user_id == user_id))
+    return result.scalars().first()
+
+async def get_cart_by_sessionid(db: AsyncSession, session_id: str):
+    result = await db.execute(select(Cart).where(Cart.session_id == session_id))
+    return result.scalars().first()
+
+
+async def get_delivery_details_by_purchase_id(db: AsyncSession, purchase_id: str):
+    result = await db.execute(
+        select(DeliveryDetails)
+        .where(DeliveryDetails.purchase_id == purchase_id)
+    )
+    return result.scalars().first()
