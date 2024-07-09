@@ -38,9 +38,6 @@ stripe.api_key = API_KEY
 # Настройка маршрута для статических файлов
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Получаем абсолютный путь к директории static
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-
 # Монтируем директорию static
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
