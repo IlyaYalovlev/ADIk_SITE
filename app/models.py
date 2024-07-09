@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, TIMESTAMP, Boolean
 from sqlalchemy.orm import relationship
@@ -28,6 +29,17 @@ class Users(Base):
     def check_password(self, password):
         return bcrypt.verify(password, self.password_hash)
 
+    def activate(self):
+        self.is_active = True
+
+    async def update_total_orders_value(self, db, amount):
+        if self.total_orders_value is None:
+            self.total_orders_value = Decimal('0.00')
+        self.total_orders_value += Decimal(amount)
+        db.add(self)
+        await db.commit()
+        await db.refresh(self)
+
 class Stock(Base):
     __tablename__ = 'stock'
     id = Column(Integer, primary_key=True, index=True)
@@ -44,6 +56,27 @@ class Stock(Base):
     seller = relationship("Users", back_populates="stocks")
     purchases = relationship("Purchase", back_populates="stock")
     cart_items = relationship("CartItem", back_populates="stock")
+
+    def set_discount_price(self, discount_price):
+        self.discount_price = discount_price
+
+    def set_quantity(self, quantity):
+        self.quantity = quantity
+
+    async def decrease_quantity(self, db, amount):
+        self.quantity -= amount
+        if self.quantity <= 0:
+            await db.delete(self)
+        else:
+            db.add(self)
+        await db.commit()
+        await db.refresh(self)
+
+    async def update_quantity(self, db, quantity):
+        self.set_quantity(quantity)
+        db.add(self)
+        await db.commit()
+        await db.refresh(self)
 
 class Purchase(Base):
     __tablename__ = 'purchases'
@@ -63,6 +96,13 @@ class Purchase(Base):
     seller = relationship("Users", foreign_keys=[seller_id])
     delivery_details = relationship("DeliveryDetails", uselist=False, back_populates="purchase")
 
+    def set_status(self, new_status):
+        self.status = new_status
+
+    def set_track(self, tracking_number):
+        self.tracking_number = tracking_number if tracking_number != "undefined" else None
+
+
 class Product(Base):
     __tablename__ = 'adidas_products'
     product_id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
@@ -80,6 +120,11 @@ class Product(Base):
 
     stocks = relationship('Stock', back_populates='product')
 
+    async def update_activation_status(self, db, is_active):
+        self.is_active = is_active
+        db.add(self)
+        await db.commit()
+        await db.refresh(self)
 
 class Cart(Base):
     __tablename__ = 'carts'
@@ -101,6 +146,13 @@ class CartItem(Base):
 
     cart = relationship("Cart", back_populates="items")
     stock = relationship("Stock", back_populates="cart_items")
+
+    def set_quantity(self, quantity):
+        self.quantity = quantity
+
+    async def remove(self, db):
+        await db.delete(self)
+        await db.commit()
 
 class DeliveryDetails(Base):
     __tablename__ = 'delivery_details'

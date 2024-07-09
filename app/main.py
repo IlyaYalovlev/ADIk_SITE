@@ -175,8 +175,8 @@ async def update_sale(data: SaleUpdateSchema, db: AsyncSession = Depends(get_db)
     purchase = await get_purchase(db, data.sale_id)
     if purchase is None:
         raise HTTPException(status_code=404, detail="Sale not found")
-    purchase.status = data.status
-    purchase.tracking_number = data.tracking_number if data.tracking_number != "undefined" else None
+    purchase.set_status(data.status)
+    purchase.set_track(data.tracking_number)
     db.add(purchase)
     await db.commit()
 
@@ -404,7 +404,7 @@ async def confirm_email(token: str, db: AsyncSession = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пользователь не найден")
 
-    user.is_active = True
+    user.activate()
     db.add(user)
     await db.commit()
 
@@ -571,8 +571,8 @@ async def update_products(request: StockUpdateRequest, db: AsyncSession = Depend
             stock_entry = result.scalar_one_or_none()
 
             if stock_entry:
-                stock_entry.discount_price = product.price
-                stock_entry.quantity = product.stock
+                stock_entry.set_discount_price(product.price)
+                stock_entry.set_quantity(product.stock)
                 db.add(stock_entry)
         await db.commit()
         return JSONResponse(content={"message": "Products updated successfully"})
@@ -691,9 +691,9 @@ async def update_cart_item(request: UpdateCartRequest, db: AsyncSession = Depend
         raise HTTPException(status_code=404, detail="CartItem not found")
 
     if request.quantity == 0:
-        await db.delete(cart_item)
+        await cart_item.remove(db)
     else:
-        cart_item.quantity = request.quantity
+        cart_item.set_quantity(request.quantity)
         db.add(cart_item)
 
     await db.commit()
@@ -884,12 +884,11 @@ async def update_stock(update_data: ProductQuantityUpdateSchema, db: AsyncSessio
 
     stock = await get_stock_item(db, update_data.stock_id)
     if stock:
-        stock.quantity = update_data.quantity
-        db.add(stock)
-        await db.commit()
+        await stock.update_quantity(db, update_data.quantity)
         return JSONResponse(status_code=200, content={"detail": "Stock updated successfully"})
     else:
         raise HTTPException(status_code=404, detail="Stock not found")
+
 
 # Активация или деактивация продукта
 @app.post("/activate-product", response_class=JSONResponse)
@@ -906,15 +905,11 @@ async def activate_product(data: ProductActivationSchema, db: AsyncSession = Dep
 
     product = await get_product_by_id(db, data.product_id)
 
-    if data.is_active:
-        product.is_active = data.is_active
-        db.add(product)
-        await db.commit()
+    if product:
+        await product.update_activation_status(db, data.is_active)
+        return JSONResponse(status_code=200, content={"detail": "Product activation status updated successfully"})
     else:
-        await db.delete(product)
-        await db.commit()
-
-    return JSONResponse(status_code=200, content={"detail": "Product activation status updated successfully"})
+        raise HTTPException(status_code=404, detail="Product not found")
 
 #Получение информации о доставке
 @app.get("/ship", response_model=DeliveryDetailsSchema)

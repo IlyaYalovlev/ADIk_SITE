@@ -19,7 +19,8 @@ from decimal import Decimal
 
 from .database import get_db
 from .models import Stock, Product, Users, Purchase, Cart, CartItem, DeliveryDetails
-from .schemas import DeliveryDetailsCreate
+from .schemas import DeliveryDetailsCreate, PurchaseCreate
+
 
 # User CRUD operations
 async def get_user_by_id(db: AsyncSession, user_id: int):
@@ -61,34 +62,24 @@ async def create_purchase(db: AsyncSession, purchase: schemas.PurchaseCreate):
     await db.refresh(db_purchase)
     return db_purchase
 
-async def update_customer(db: AsyncSession, purchase: schemas.PurchaseCreate):
+async def update_customer(db: AsyncSession, purchase: PurchaseCreate):
     db_customer = await get_user_by_id(db, purchase.customer_id)
     if db_customer:
-        db_customer.total_orders_value += Decimal(purchase.total_price)
-        await db.commit()
-        await db.refresh(db_customer)
+        await db_customer.update_total_orders_value(db, purchase.total_price)
     else:
         raise HTTPException(status_code=404, detail="Customer not found")
 
-async def update_seller(db: AsyncSession, purchase: schemas.PurchaseCreate):
+async def update_seller(db: AsyncSession, purchase: PurchaseCreate):
     db_seller = await get_user_by_id(db, purchase.seller_id)
     if db_seller:
-        if db_seller.total_orders_value is None:
-            db_seller.total_orders_value = Decimal('0.00')
-        db_seller.total_orders_value += Decimal(purchase.total_price)
-        await db.commit()
-        await db.refresh(db_seller)
+        await db_seller.update_total_orders_value(db, purchase.total_price)
     else:
         raise HTTPException(status_code=404, detail="Seller not found")
 
-async def update_stock(db: AsyncSession, purchase: schemas.PurchaseCreate):
+async def update_stock(db: AsyncSession, purchase: PurchaseCreate):
     db_stock = await get_stock_item(db, purchase.stock_id)
     if db_stock:
-        db_stock.quantity -= purchase.quantity
-        if db_stock.quantity == 0:
-            await db.delete(db_stock)
-        await db.commit()
-        await db.refresh(db_stock)
+        await db_stock.decrease_quantity(db, purchase.quantity)
     else:
         raise HTTPException(status_code=404, detail="Stock item not found")
 
@@ -380,12 +371,19 @@ async def create_delivery_details(db: AsyncSession, delivery_details: DeliveryDe
     await db.refresh(db_delivery_details)
     return db_delivery_details
 
+
 async def delete_cart_items_by_user_id(db: AsyncSession, user_id: int):
     cart = await db.execute(select(Cart).where(Cart.user_id == user_id))
     cart = cart.scalars().first()
+
     if cart:
-        await db.execute(delete(CartItem).where(CartItem.cart_id == cart.id))
-        await db.commit()
+        cart_items = await db.execute(select(CartItem).where(CartItem.cart_id == cart.id))
+        cart_items = cart_items.scalars().all()
+
+        for item in cart_items:
+            await item.remove(db)
+
+    await db.commit()
 
 async def create_delivery_details(db: AsyncSession, delivery_details: schemas.DeliveryDetailsС):
     db_delivery = models.DeliveryDetails(**delivery_details.dict())
