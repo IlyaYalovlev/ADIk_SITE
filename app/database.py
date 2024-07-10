@@ -1,11 +1,18 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import MetaData
 from contextlib import asynccontextmanager
 from config import DATABASE_URL as DATABASE_URL1
 
 # Получаем URL базы данных из конфигурационного файла
 DATABASE_URL = DATABASE_URL1
+
+# Создаем метаданные
+metadata = MetaData()
+
+# Создаем базовый класс для моделей, используя созданные метаданные
+Base = declarative_base(metadata=metadata)
 
 # Создаем асинхронный движок базы данных с параметрами пула соединений
 engine = create_async_engine(
@@ -23,9 +30,6 @@ AsyncSessionLocal = sessionmaker(
     bind=engine,
     class_=AsyncSession
 )
-
-# Создаем базовый класс для моделей
-Base = declarative_base()
 
 # Контекстный менеджер для работы с сессиями базы данных
 @asynccontextmanager
