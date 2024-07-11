@@ -5,7 +5,9 @@ from fastapi import  Request
 from redis import asyncio as aioredis
 from starlette.templating import Jinja2Templates
 
-redis = aioredis.from_url("redis://localhost:6379", encoding="utf-8", decode_responses=True)
+from config import REDIS_URL
+
+redis = aioredis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
 
 # Подключаем Jinja2 templates
 templates = Jinja2Templates(directory="app/templates")
