@@ -35,16 +35,9 @@ router = APIRouter()
 
 stripe.api_key = API_KEY
 
-# Настройка маршрута для статических файлов
-router.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Монтируем директорию static
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-router.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-# Подключаем Jinja2 templates
+# Настройка Jinja2 шаблонов
 templates = Jinja2Templates(directory="app/templates")
-
 
 SECRET_KEY = SECRET
 ALGORITHM = "HS256"
