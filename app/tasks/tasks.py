@@ -2,9 +2,9 @@ import smtplib
 from celery import Celery
 from email.mime.text import MIMEText
 from email.header import Header
-from config import PASSWORD, EMAIL
+from config import PASSWORD, EMAIL, REDIS_URL
 
-celery = Celery('tasks', broker='redis://localhost:6379')
+celery = Celery('tasks', broker=REDIS_URL)
 
 @celery.task
 def send_email(email: str, msg_text: str):
